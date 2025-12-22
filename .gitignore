@@ -23,19 +23,3 @@ build/
 .DS_Store
 Thumbs.db
 
-# Artifacts (development only)
-*_proxy_packet.bin
-*_packet_hex.txt
-*_monitor.log
-experiment_*.log
-full_current_log.txt
-current_proxy_log.txt
-tcp-mqtt-proxy-working.py
-
-# Test outputs
-test_*.log
-
-# Local config and logs
-local_logs.txt
-docker-compose.override.yml
-docker-compose.merged.yml
