@@ -1,0 +1,36 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+*.class
+*.so
+.Python
+env/
+venv/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Artifacts (development only)
+*_proxy_packet.bin
+*_packet_hex.txt
+*_monitor.log
+experiment_*.log
+full_current_log.txt
+current_proxy_log.txt
+tcp-mqtt-proxy-working.py
+
+# Test outputs
+test_*.log

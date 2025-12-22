@@ -1,0 +1,10 @@
+# Tasks
+
+- [x] Explore codebase for test scripts or instructions <!-- id: 0 -->
+- [x] Determine how to run the proxy for testing <!-- id: 1 -->
+- [x] Setup SSH Key Access <!-- id: 4 -->
+- [x] Run the proxy/tests <!-- id: 2 -->
+- [x] Analyze results and fix issues if any <!-- id: 3 -->
+    - [x] Diagnose crash/stop reason (Timed out/Connection Refused) <!-- id: 5 -->
+    - [x] Investigate missing messages (Channel mapping) <!-- id: 6 -->
+    - [x] Retrieve Channel Info <!-- id: 7 -->

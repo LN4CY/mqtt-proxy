@@ -1,0 +1,6 @@
+{
+  "artifactType":  "ARTIFACT_TYPE_WALKTHROUGH",
+  "summary":  "Complete walkthrough of successful MQTT proxy implementation using mqttClientProxyMessage protocol, matching iOS app behavior. Documents architecture, key changes, and testing results.",
+  "updatedAt":  "2025-12-22T03:00:43.464062400Z",
+  "version":  "10"
+}

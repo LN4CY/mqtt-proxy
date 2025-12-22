@@ -1,0 +1,5 @@
+{
+  "artifactType":  "ARTIFACT_TYPE_OTHER",
+  "summary":  "Final analysis of why Docker proxy packets aren't being received by the physical node",
+  "updatedAt":  "2025-12-21T21:19:34.230808400Z"
+}

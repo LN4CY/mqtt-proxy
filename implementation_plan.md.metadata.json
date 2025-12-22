@@ -1,0 +1,6 @@
+{
+  "artifactType":  "ARTIFACT_TYPE_IMPLEMENTATION_PLAN",
+  "summary":  "Plan to add Serial and BLE interface support to the MQTT proxy, creating a unified multi-interface proxy with automatic interface selection",
+  "updatedAt":  "2025-12-22T03:22:01.544143600Z",
+  "version":  "4"
+}

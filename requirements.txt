@@ -1,0 +1,14 @@
+﻿# Meshtastic MQTT Proxy - Python Dependencies
+# Pinned versions for reproducible builds
+
+# Meshtastic Python library
+meshtastic==2.7.5
+
+# MQTT client
+paho-mqtt==2.1.0
+
+# Pub/sub messaging (dependency of meshtastic)
+Pypubsub==4.0.7
+
+# Protocol Buffers (auto-installed by meshtastic, but pinning for safety)
+protobuf>=3.20.0,<6.0.0

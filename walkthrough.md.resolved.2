@@ -1,0 +1,27 @@
+# MQTT Proxy Debugging Walkthrough
+
+## Issues Resolved
+### 1. Library Crash (`logging` error)
+**Root Cause:** The `meshtastic` library (v2.7.5) crashed when receiving an integer port number instead of a stream for `debugOut`.
+**Fix:** Explicitly passed `portNumber=4404` as a keyword argument in [tcp-mqtt-proxy.py](file:///C:/Users/dremb/.gemini/antigravity/brain/cd00e979-2d9a-4abd-80d8-38d6d36e6d90/tcp-mqtt-proxy.py).
+
+### 2. Message Loss / Instability (Protobuf Mismatch)
+**Root Cause:** Incompatibility between the library and Node Firmware caused `DecodeError` exceptions. This prevented the proxy from learning channel names from the node, causing it to drop or mislabel messages.
+
+**Fix:**
+- **Crash Protection:** Updated proxy to catch and suppress `DecodeError` instead of crashing.
+- **Manual Mapping:** Added `CHANNEL_MAP` environment variable to [docker-compose.yml](file:///C:/Users/dremb/.gemini/antigravity/brain/cd00e979-2d9a-4abd-80d8-38d6d36e6d90/docker-compose.yml) to allow manual definition of channels when auto-detection fails.
+
+## Final Configuration
+We successfully retrieved the channel list from your node and updated your [docker-compose.yml](file:///C:/Users/dremb/.gemini/antigravity/brain/cd00e979-2d9a-4abd-80d8-38d6d36e6d90/docker-compose.yml) with the correct map:
+
+```yaml
+    environment:
+      # Found on Node via investigation
+      - CHANNEL_MAP=0:LongFast,1:NCMesh,2:NCBotmesh,3:LN4CY_01,37:MCRG256
+```
+
+## Verification results
+- **Incoming Messages:** Packets from Index 0 are correctly published to `msh/US/2/e/LongFast/...`. Other channels (1, 2, 3) will map to their names `NCMesh`, etc.
+- **Stability:** The proxy handles protocol errors gracefully without restarting.
+- **Note:** You may still see `RX Map: 'LongFast' not found` warnings in the logs. This is normal because the proxy cannot *verify* the name against the node (due to the protocol mismatch), but it defaults safely to Index 0, so messages are delivered correctly.

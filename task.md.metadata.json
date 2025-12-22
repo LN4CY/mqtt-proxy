@@ -1,0 +1,6 @@
+{
+  "artifactType":  "ARTIFACT_TYPE_TASK",
+  "summary":  "Task list for multi-interface MQTT proxy implementation, tracking progress through TCP, Serial, and BLE support phases",
+  "updatedAt":  "2025-12-22T03:22:26.294595800Z",
+  "version":  "16"
+}

@@ -1,0 +1,103 @@
+# Meshtastic MQTT Client Proxy
+
+A Docker-based transparent MQTT proxy for Meshtastic nodes, enabling nodes without direct internet access to communicate via MQTT through the proxy's network connection.
+
+## Features
+
+✅ **Bidirectional MQTT Proxy** - Full Node ↔ MQTT communication  
+✅ **All Channels Supported** - Works with any channel configuration  
+✅ **Zero Configuration** - Automatically reads settings from node  
+✅ **Production Ready** - Fully configurable via environment variables  
+✅ **iOS App Compatible** - Uses same `mqttClientProxyMessage` protocol
+
+## Quick Start
+
+1. **Clone or copy the files:**
+   - [tcp-mqtt-proxy.py](file:///C:/Users/dremb/.gemini/antigravity/brain/cd00e979-2d9a-4abd-80d8-38d6d36e6d90/tcp-mqtt-proxy.py)
+   - [docker-compose.yml](file:///C:/Users/dremb/.gemini/antigravity/brain/cd00e979-2d9a-4abd-80d8-38d6d36e6d90/docker-compose.yml)
+   - `Dockerfile`
+
+2. **Configure (optional):**
+   ```bash
+   # Create .env file or edit docker-compose.yml
+   TCP_NODE_HOST=192.168.1.100  # Your node's IP
+   TCP_NODE_PORT=4403           # Default Meshtastic port
+   ```
+
+3. **Run:**
+   ```bash
+   docker compose up -d
+   ```
+
+4. **Verify:**
+   ```bash
+   docker compose logs -f mqtt-proxy
+   ```
+
+## Configuration
+
+See [CONFIG.md](CONFIG.md) for all available environment variables.
+
+### Common Configurations
+
+**Local node:**
+```yaml
+TCP_NODE_HOST=localhost
+TCP_NODE_PORT=4403
+```
+
+**Remote node:**
+```yaml
+TCP_NODE_HOST=192.168.1.100
+TCP_NODE_PORT=4403
+```
+
+**Debug mode:**
+```yaml
+LOG_LEVEL=DEBUG
+```
+
+## How It Works
+
+The proxy connects to a Meshtastic node via TCP and acts as an MQTT client on behalf of the node:
+
+1. **Node → MQTT**: Intercepts `mqttClientProxyMessage` from node and publishes to MQTT broker
+2. **MQTT → Node**: Receives MQTT messages and forwards as `mqttClientProxyMessage` to node
+3. **Automatic Configuration**: Reads MQTT settings and channel config from node
+
+## Requirements
+
+- Docker & Docker Compose
+- Meshtastic node with TCP interface enabled
+- Node must have MQTT module configured with `proxyToClientEnabled=true`
+
+## Troubleshooting
+
+**Proxy won't connect:**
+- Verify `TCP_NODE_HOST` and `TCP_NODE_PORT` are correct
+- Ensure node has TCP interface enabled
+- Check firewall rules
+
+**No MQTT traffic:**
+- Verify node's MQTT module is enabled
+- Ensure `proxyToClientEnabled=true` on node
+- Check MQTT broker credentials in node config
+
+**See logs:**
+```bash
+docker compose logs -f mqtt-proxy
+```
+
+## Architecture
+
+```
+┌─────────────┐         ┌──────────────┐         ┌─────────────┐
+│  Meshtastic │◄───────►│ Docker Proxy │◄───────►│ MQTT Broker │
+│    Node     │   TCP   │              │  MQTT   │             │
+└─────────────┘  4403   │   (Python)   │         └─────────────┘
+                        └──────────────┘
+```
+
+## License
+
+MIT

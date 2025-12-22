@@ -1,0 +1,30 @@
+# Proxy Verification Plan
+
+## Goal
+Verify that the `tcp-mqtt-proxy.py` correctly handles bidirectional traffic between the Meshtastic TCP node and the MQTT broker.
+
+## Issues Identified
+> [!WARNING]
+> Crash `AttributeError: 'int' object has no attribute 'write'` is caused by incorrect positional arguments. The `TCPInterface` constructor expects `debugOut` as the 2nd argument, but the code passes the port number (`4404`).
+
+## Resolution Strategy
+Modify `tcp-mqtt-proxy.py` to use keyword arguments when initializing `RawTCPInterface` (which passes them to `TCPInterface`), ensuring port `4404` is assigned to `portNumber` and not `debugOut`.
+
+### 1. Code Fix
+- Change `RawTCPInterface(Host, Port, ...)` to `RawTCPInterface(Host, portNumber=Port, ...)` in `main()`.
+
+### 2. Live Execution & Monitoring
+- Deploy patched `tcp-mqtt-proxy.py`.
+- Run with `docker compose up --build`.
+
+### 3. Verification Scenarios
+#### A. Connection
+- Ensure proxy connects without crashing (Node config loaded).
+
+#### B. Map/NodeInfo Update
+- Wait for node updates (logs `Publishing to MQTT`).
+
+## Proposed Changes
+### [Gateway]
+#### [MODIFY] [tcp-mqtt-proxy.py](file:///mqttgateway/home/pi/MeshMonitor/mqttgateway/tcp-mqtt-proxy.py)
+   - Update `RawTCPInterface` instantiation arguments.

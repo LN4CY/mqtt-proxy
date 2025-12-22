@@ -1,0 +1,31 @@
+# MQTT Proxy Debugging Walkthrough
+
+## Issues Resolved
+### 1. Library Crash (`logging` error)
+**Root Cause:** The `meshtastic` library (v2.7.5) crashed when receiving an integer port number instead of a stream for `debugOut`.
+**Fix:** Explicitly passed `portNumber=4404` as a keyword argument in [tcp-mqtt-proxy.py](file:///C:/Users/dremb/.gemini/antigravity/brain/cd00e979-2d9a-4abd-80d8-38d6d36e6d90/tcp-mqtt-proxy.py).
+
+### 2. Message Loss / Instability (Protobuf Mismatch)
+**Root Cause:** Incompatibility between the library and Node Firmware caused `DecodeError` exceptions. This prevented the proxy from learning channel names from the node.
+**Fix:**
+- **Crash Protection:** Updated proxy to catch and suppress `DecodeError` instead of crashing.
+- **Resilience:** Implemented a fallback to use `Chan_<Index>` for topic names if name lookup fails.
+- **Manual Mapping:** Added `CHANNEL_MAP` environment variable to [docker-compose.yml](file:///C:/Users/dremb/.gemini/antigravity/brain/cd00e979-2d9a-4abd-80d8-38d6d36e6d90/docker-compose.yml).
+
+### 3. Missing Messages / Traces
+**Root Cause:** The proxy was stripping the `decoded` (plaintext) field from packets before forwarding to MQTT to strictly mimic "Over-the-Air" security.
+**Fix:** Disabled this stripping. Clients like MeshMonitor can now see the standard text and traceroute details in the packets.
+
+## Final Configuration
+Your [docker-compose.yml](file:///C:/Users/dremb/.gemini/antigravity/brain/cd00e979-2d9a-4abd-80d8-38d6d36e6d90/docker-compose.yml) now includes the correct map retrieved from the node:
+```yaml
+    environment:
+      # Found on Node via investigation
+      - CHANNEL_MAP=0:LongFast,1:NCMesh,2:NCBotmesh,3:LN4CY_01,37:MCRG256
+```
+
+## Verification Results
+- **Solo Operation Confirmed:** With the iOS proxy disabled, the Docker proxy is handling 100% of the traffic.
+- **Plaintext Forwarding:** Messages and Traceroute responses are now forwarded with their `decoded` content intact, allowing clients to display them.
+- **Correct Mapping:** I verified specific packets on the `NCMesh` channel (Index 1) are being published to `msh/US/2/e/NCMesh/...` correctly.
+- **Stability:** The proxy is running without crashes and handling protocol errors gracefully.

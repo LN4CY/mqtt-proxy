@@ -1,0 +1,38 @@
+# MQTT Proxy Debugging Walkthrough
+
+## Issues Resolved
+### 1. Library Crash (`logging` error)
+**Root Cause:** The proxy was passing the port `4404` as a positional argument to [TCPInterface](file:///C:/Users/dremb/.gemini/antigravity/brain/cd00e979-2d9a-4abd-80d8-38d6d36e6d90/tcp-mqtt-proxy.py#405-437). The library interpreted this as a file stream for logging, causing `AttributeError: 'int' object has no attribute 'write'`.
+**Fix:** Explicitly passed `portNumber=4404` as a keyword argument.
+
+### 2. Message Loss / Instability (Protobuf Mismatch)
+**Root Cause:** Incompatibility between the installed `meshtastic` library (2.7.5) and the Node Firmware. This caused `DecodeError` exceptions when parsing node info and incoming packets, leading to:
+- "Channel NOT FOUND" warnings (messages defaulting to Index 0 / LongFast).
+- Proxy crashes or hangs when receiving malformed packets.
+
+**Fix:**
+- **Crash Protection:** Updated [tcp-mqtt-proxy.py](file:///C:/Users/dremb/.gemini/antigravity/brain/cd00e979-2d9a-4abd-80d8-38d6d36e6d90/tcp-mqtt-proxy.py) to catch and log `DecodeError` instead of crashing.
+- **Resilience:** Implemented a fallback to use `Chan_<Index>` for topic names if name lookup fails.
+- **Manual Config:** Added `CHANNEL_MAP` environment variable support to [docker-compose.yml](file:///C:/Users/dremb/.gemini/antigravity/brain/cd00e979-2d9a-4abd-80d8-38d6d36e6d90/docker-compose.yml).
+
+## Configuration Update
+You can now manually map channels if auto-detection fails!
+
+**In [docker-compose.yml](file:///C:/Users/dremb/.gemini/antigravity/brain/cd00e979-2d9a-4abd-80d8-38d6d36e6d90/docker-compose.yml):**
+```yaml
+    environment:
+      - TCP_NODE_HOST=${TCP_NODE_HOST:-192.168.50.50}
+      - TCP_NODE_PORT=${TCP_NODE_PORT:-4404}
+      # Format: "Index:Name,Index:Name"
+      - CHANNEL_MAP="0:LongFast,1:Secondary,37:MCRG256"
+```
+
+## Verification
+- **Stability:** Proxy starts and stays connected without crashing.
+- **Message Flow:** Messages on unknown channels are now forwarded as `Chan_<Index>` (e.g., `Chan_37`) instead of being lost or merged into LongFast.
+- **Logs:**
+```text
+[INFO] tcp-mqtt-proxy: Node config fully loaded. Proxy active.
+[WARNING] Channel Name lookup failed for Index 37. Using 'Chan_37'
+[INFO] ... Publishing to MQTT: Topic=msh/US/2/e/Chan_37/!9e76b3e0 ...
+```

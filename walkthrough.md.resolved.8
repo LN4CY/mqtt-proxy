@@ -1,0 +1,28 @@
+# MQTT Proxy Debugging Walkthrough
+
+## Issues Resolved
+### 1. Library Crash (`logging` error)
+**Fix:** Explicitly passed `portNumber=4404` as a keyword argument in [tcp-mqtt-proxy.py](file:///C:/Users/dremb/.gemini/antigravity/brain/cd00e979-2d9a-4abd-80d8-38d6d36e6d90/tcp-mqtt-proxy.py).
+
+### 2. Message Loss / Instability (Protobuf Mismatch)
+**Fix:** 
+- Added `DecodeError` handling.
+- Implemented Manual Channel Map logic.
+
+### 3. Missing Messages / Traces (Display Issue)
+**Root Cause:**
+1.  **Plaintext Stripping:** Initially stripped `decoded` field for security. Fixed by disabling stripping.
+2.  **Encryption Mismatch:** Packets generated locally (Traceroute replies, etc.) often lack the `encrypted` payload field (since they are already decrypted for the host). However, the proxy was publishing them to the **Encrypted** (`msh/US/2/e/...`) topic. Clients expecting encrypted payloads failed to decrypt/display them.
+
+**Fix:** 
+- Modified [tcp-mqtt-proxy.py](file:///C:/Users/dremb/.gemini/antigravity/brain/cd00e979-2d9a-4abd-80d8-38d6d36e6d90/tcp-mqtt-proxy.py) to check for `encrypted` payload.
+- If missing (but `decoded` exists), automatically switch the subtopic to **`c` (Cleartext)**.
+- This ensures clients receive the packet in the correct "channel" (Cleartext) and display the contents without trying to decrypt empty data.
+
+## Final Configuration
+- **Script:** Updated [tcp-mqtt-proxy.py](file:///C:/Users/dremb/.gemini/antigravity/brain/cd00e979-2d9a-4abd-80d8-38d6d36e6d90/tcp-mqtt-proxy.py) with `ClearField` disabled and `sub_topic` auto-switching logic.
+- **Docker:** `CHANNEL_MAP` environment variable active.
+
+## Verification Results
+- **Solo Operation:** Confirmed traffic flow.
+- **Plaintext/Cleartext Logic:** Implemented to ensure messages appear on client apps. Please verify by sending a message or traceroute.
