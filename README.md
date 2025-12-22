@@ -132,6 +132,35 @@ docker compose logs -f mqtt-proxy
 docker compose down
 ```
 
+## Windows Support
+
+Running this proxy on Windows? Here's what you need to know:
+
+### 1. TCP Interface (Recommended for Docker)
+If you are connecting to a node over TCP (WiFi), Docker Desktop for Windows works perfectly out of the box. Just use the standard `docker-compose.yml`.
+
+### 2. Serial Interface (USB)
+Connecting to a USB device via Docker on Windows is **not supported directly** because Docker runs in a VM (WSL2) and Windows does not pass COM ports to it by default.
+
+**Option A: Run Natively (Easiest)**
+Install Python on Windows and run the script directly. This allows direct access to COM ports (e.g., `COM3`).
+
+```powershell
+# Install dependencies
+pip install -r requirements.txt
+
+# Run with environment variables
+$env:INTERFACE_TYPE="serial"
+$env:SERIAL_PORT="COM3"
+python mqtt-proxy.py
+```
+
+**Option B: Docker via WSL2 + usbipd (Advanced)**
+If you MUST use Docker with USB Config, you need `usbipd-win` to bridge the USB device to WSL2.
+1. Install [usbipd-win](https://github.com/dorssel/usbipd-win).
+2. Attach the device: `usbipd wsl attach --busid <BUSID>`
+3. The device will appear as `/dev/ttyACM0` inside WSL2/Docker.
+
 ## Integration with MeshMonitor
 
 For a seamless integration with [MeshMonitor](https://github.com/Yeraze/meshmonitor), add the proxy as a service in your main `docker-compose.yml`.
