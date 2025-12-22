@@ -485,8 +485,18 @@ def main():
             logger.info("Node config fully loaded. Proxy active.")
 
             # Blocking wait while connected
+            last_heartbeat = 0
             while running:
                  time.sleep(1)
+                 
+                 # Update heartbeat file every 10 seconds
+                 if time.time() - last_heartbeat > 10:
+                     try:
+                         with open("/tmp/healthy", "w") as f:
+                             f.write(str(time.time()))
+                         last_heartbeat = time.time()
+                     except Exception as e:
+                         logger.debug("Heartbeat error: %s", e)
                  
         except Exception as e:
             logger.error("Connection error: %s", e)

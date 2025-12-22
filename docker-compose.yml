@@ -8,20 +8,28 @@ services:
     restart: unless-stopped
     environment:
       # Interface selection
-      - INTERFACE_TYPE=${INTERFACE_TYPE:-tcp}  # tcp or serial (BLE not yet supported)
-      
+      - INTERFACE_TYPE=${INTERFACE_TYPE:-tcp} # tcp or serial (BLE not yet supported)
+
       # Node connection settings
       - TCP_NODE_HOST=${TCP_NODE_HOST:-localhost}
       - TCP_NODE_PORT=${TCP_NODE_PORT:-4403}
       - SERIAL_PORT=${SERIAL_PORT:-/dev/ttyUSB0}
-      
+
       # Logging
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      
+
       # Timeout configurations (in seconds)
-      - TCP_TIMEOUT=${TCP_TIMEOUT:-300}           # TCP connection timeout (default: 5 minutes)
-      - CONFIG_WAIT_TIMEOUT=${CONFIG_WAIT_TIMEOUT:-60}  # Wait for node config (default: 1 minute)
-      - POLL_INTERVAL=${POLL_INTERVAL:-1}         # Config polling interval (default: 1 second)
+      - TCP_TIMEOUT=${TCP_TIMEOUT:-300} # TCP connection timeout (default: 5 minutes)
+      - CONFIG_WAIT_TIMEOUT=${CONFIG_WAIT_TIMEOUT:-60} # Wait for node config (default: 1 minute)
+      - POLL_INTERVAL=${POLL_INTERVAL:-1} # Config polling interval (default: 1 second)
+
+    healthcheck:
+      test: [ "CMD-SHELL", "python3 -c 'import os, time; exit(0) if os.path.exists(\"/tmp/healthy\") and time.time() - os.path.getmtime(\"/tmp/healthy\") < 30 else exit(1)'" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
     volumes:
       - ./mqtt-proxy.py:/app/mqtt-proxy.py
     devices:
@@ -29,5 +37,5 @@ services:
       - /dev/ttyACM0:/dev/ttyACM0
       - /dev/ttyACM1:/dev/ttyACM1
       # - /dev/ttyUSB0:/dev/ttyUSB0
-    privileged: true  # Required for serial device access
+    privileged: true # Required for serial device access
     network_mode: host
