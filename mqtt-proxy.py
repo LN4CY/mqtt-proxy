@@ -369,6 +369,8 @@ class MQTTProxyMixin:
             # Parse the bytes into a FromRadio object for our inspection
             # Handle both bytes and already-parsed protobuf objects
             if isinstance(fromRadio, bytes):
+                # Debug logging for raw bytes
+                # logger.debug("Raw FromRadio bytes (%d): %s", len(fromRadio), fromRadio.hex())
                 decoded = mesh_pb2.FromRadio()
                 decoded.ParseFromString(fromRadio)
             else:
