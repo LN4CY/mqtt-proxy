@@ -138,8 +138,9 @@ def on_connection(interface, **kwargs):
         logger.warning("No localNode available")
         return
 
-    # Log connection - HW/FW info may not be available yet
-    logger.info("Connected to node %s", node.nodeNum)
+    # Log connection with node ID in hex format (e.g. !10ae8907)
+    node_id_hex = "!{:08x}".format(node.nodeNum)
+    logger.info("Connected to node %s", node_id_hex)
     
     # helper to get node ID string (e.g. !1234abcd) -> 1234abcd
     try:
