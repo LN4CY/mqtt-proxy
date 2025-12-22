@@ -601,7 +601,9 @@ def main():
                           try:
                               logger.info("Sending active probe (heartbeat) to node...")
                               if iface:
-                                   iface.sendText("mqtt-health", wantAck=False)
+                                   # iface.sendText("mqtt-health", wantAck=False)
+                                   # Use sendPosition (Location TX) as a non-intrusive heartbeat
+                                   iface.sendPosition()
                                    last_probe_time = current_time
                           except Exception as e:
                               logger.warning("Failed to send active probe: %s", e)

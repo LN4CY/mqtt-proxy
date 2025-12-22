@@ -25,7 +25,7 @@ services:
 
       # Health Check Configuration
       - HEALTH_CHECK_ACTIVITY_TIMEOUT=${HEALTH_CHECK_ACTIVITY_TIMEOUT:-300} # Max idle time before restart (seconds)
-      - HEALTH_CHECK_PROBE_INTERVAL=10 # Short interval for verification
+      # - HEALTH_CHECK_PROBE_INTERVAL=10 # Short interval for verification
       - HEALTH_CHECK_STATUS_INTERVAL=${HEALTH_CHECK_STATUS_INTERVAL:-60} # how often to log status (seconds)
 
     healthcheck:

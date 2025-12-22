@@ -34,3 +34,8 @@ tcp-mqtt-proxy-working.py
 
 # Test outputs
 test_*.log
+
+# Local config and logs
+local_logs.txt
+docker-compose.override.yml
+docker-compose.merged.yml
