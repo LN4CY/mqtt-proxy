@@ -119,8 +119,9 @@ def on_mqtt_message_callback(client, userdata, msg):
         to_radio = mesh_pb2.ToRadio()
         to_radio.mqttClientProxyMessage.CopyFrom(mqtt_proxy_msg)
         
-        # Send via the interface's _sendToRadioImpl method
-        iface._sendToRadioImpl(to_radio)
+        # Send via the interface - serialize and send the ToRadio protobuf
+        # The interface's _sendToRadio method handles this internally
+        iface._sendToRadio(to_radio.SerializeToString())
         
     except Exception as e:
         logger.error("Error handling MQTT message: %s", e)
