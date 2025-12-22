@@ -124,7 +124,7 @@ def on_mqtt_message_callback(client, userdata, message):
                  return
 
             
-        logger.info("MQTT RX (Forwarding): Topic=%s Size=%d bytes", message.topic, len(message.payload))
+        logger.info("MQTT->Node: Topic=%s Size=%d bytes", message.topic, len(message.payload))
         
         # Forward ALL MQTT messages directly to node as mqttClientProxyMessage
         # The node's firmware will handle parsing, channel mapping, and filtering
