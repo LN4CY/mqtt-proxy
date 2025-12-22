@@ -100,14 +100,21 @@ def on_mqtt_connect(client, userdata, flags, rc, props=None):
     else:
         logger.error("MQTT Connect failed: %s", rc)
 
-def on_mqtt_message_callback(client, userdata, msg):
-    """Received message FROM MQTT Broker intended for the Node"""
+def on_mqtt_message_callback(client, userdata, message):
+    """
+    Called when a message is received from the MQTT broker.
+    We need to send this packet to the radio via the Interface.
+    """
     try:
+        if iface is None:
+            logger.warning("Ignoring MQTT message: Interface not ready yet.")
+            return
+
         # Skip stat messages (status updates)
-        if "/stat/" in msg.topic:
+        if "/stat/" in message.topic:
             return
             
-        logger.info("MQTT RX (Forwarding): Topic=%s Size=%d bytes", msg.topic, len(msg.payload))
+        logger.info("MQTT RX (Forwarding): Topic=%s Size=%d bytes", message.topic, len(message.payload))
         
         # Forward ALL MQTT messages directly to node as mqttClientProxyMessage
         # The node's firmware will handle parsing, channel mapping, and filtering
