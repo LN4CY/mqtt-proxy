@@ -374,15 +374,18 @@ class MQTTProxyMixin:
                 # using a custom topic 'proxy.receive.raw'
                 pub.sendMessage("proxy.receive.raw", packet=decoded.packet, interface=self)
         except Exception as e:
-            logger.error("Error in MQTT proxy interception: %s", e)
+            # Expected protobuf parsing errors - log at debug level
+            logger.debug("Error in MQTT proxy interception: %s", e)
 
         # Always call super to let the library maintain its state (nodes, peers, etc.)
         try:
             super()._handleFromRadio(fromRadio)
         except DecodeError as e:
-            logger.error("Protobuf Decode Error (suppressed): %s", e)
+            # Expected protobuf decode errors - log at debug level
+            logger.debug("Protobuf Decode Error (suppressed): %s", e)
         except Exception as e:
-            logger.error("Error in StreamInterface processing: %s", e)
+            # Unexpected errors in stream processing - log at debug level
+            logger.debug("Error in StreamInterface processing: %s", e)
 
 
 class RawTCPInterface(MQTTProxyMixin, TCPInterface):
