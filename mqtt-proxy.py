@@ -45,6 +45,12 @@ TCP_TIMEOUT = int(os.environ.get("TCP_TIMEOUT", "300"))  # 5 minutes default
 CONFIG_WAIT_TIMEOUT = int(os.environ.get("CONFIG_WAIT_TIMEOUT", "60"))  # 1 minute default
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL", "1"))  # 1 second default
 
+# Health check configurations
+HEALTH_CHECK_ACTIVITY_TIMEOUT = int(os.environ.get("HEALTH_CHECK_ACTIVITY_TIMEOUT", "300"))  # 5 minutes default
+HEALTH_CHECK_PROBE_INTERVAL = int(os.environ.get("HEALTH_CHECK_PROBE_INTERVAL", str(HEALTH_CHECK_ACTIVITY_TIMEOUT // 2))) # Default to half of timeout
+HEALTH_CHECK_STATUS_INTERVAL = int(os.environ.get("HEALTH_CHECK_STATUS_INTERVAL", "60"))  # 60 seconds default
+MQTT_RECONNECT_DELAY = int(os.environ.get("MQTT_RECONNECT_DELAY", "5"))  # 5 seconds default
+
 
 running = True
 iface = None
@@ -54,6 +60,15 @@ mqtt_client = None
 current_mqtt_cfg = None
 # To store the node ID for topic construction
 my_node_id = None
+
+# Health monitoring state
+mqtt_connected = False
+last_mqtt_tx_time = 0  # Last time we published to MQTT
+last_mqtt_rx_time = 0  # Last time we received from MQTT
+mqtt_tx_count = 0
+mqtt_rx_count = 0
+last_status_log_time = 0
+last_probe_time = 0
 
 # ---------------------------------------------------------------------
 # Signal handling
@@ -83,7 +98,11 @@ signal.signal(signal.SIGTERM, handle_sigint)
 # MQTT Callbacks
 # ---------------------------------------------------------------------
 def on_mqtt_connect(client, userdata, flags, rc, props=None):
+    global mqtt_connected, last_mqtt_rx_time
     logger.info("MQTT Connected with result code: %s", rc)
+    if rc == 0:
+        mqtt_connected = True
+        last_mqtt_rx_time = time.time()  # Reset activity timer on connect
     if rc == 0 and current_mqtt_cfg:
         root_topic = current_mqtt_cfg.root if current_mqtt_cfg.root else "msh"
         # region = "US" # Removed to avoid duplication if root_topic already has region
@@ -99,13 +118,24 @@ def on_mqtt_connect(client, userdata, flags, rc, props=None):
         client.subscribe(topic_wildcard)
         
     else:
+        mqtt_connected = False
         logger.error("MQTT Connect failed: %s", rc)
+
+def on_mqtt_disconnect(client, userdata, rc, props=None):
+    """Called when MQTT client disconnects"""
+    global mqtt_connected
+    mqtt_connected = False
+    if rc != 0:
+        logger.warning("MQTT Disconnected unexpectedly (rc=%s). Will attempt to reconnect.", rc)
+    else:
+        logger.info("MQTT Disconnected gracefully.")
 
 def on_mqtt_message_callback(client, userdata, message):
     """
     Called when a message is received from the MQTT broker.
     We need to send this packet to the radio via the Interface.
     """
+    global last_mqtt_rx_time, mqtt_rx_count
     try:
         if iface is None:
             logger.warning("Ignoring MQTT message: Interface not ready yet.")
@@ -124,6 +154,10 @@ def on_mqtt_message_callback(client, userdata, message):
                  return
 
             
+        # Update activity tracking
+        last_mqtt_rx_time = time.time()
+        mqtt_rx_count += 1
+        
         logger.info("MQTT->Node: Topic=%s Size=%d bytes", message.topic, len(message.payload))
         
         # Forward ALL MQTT messages directly to node as mqttClientProxyMessage
@@ -209,6 +243,7 @@ def on_connection(interface, **kwargs):
         mqtt_client.username_pw_set(mqtt_username, mqtt_password)
         
     mqtt_client.on_connect = on_mqtt_connect
+    mqtt_client.on_disconnect = on_mqtt_disconnect
     mqtt_client.on_message = on_mqtt_message_callback
     
     try:
@@ -346,7 +381,14 @@ def on_receive(packet, interface):
         logger.debug("Publishing to MQTT: Topic=%s (Size=%d bytes) [From=%s Ch=%s] Retain=%s", 
             topic, len(payload), from_node_hex, chan_name, should_retain)
         
-        mqtt_client.publish(topic, payload, retain=should_retain)
+        result = mqtt_client.publish(topic, payload, retain=should_retain)
+        if result.rc == mqtt.MQTT_ERR_SUCCESS:
+             # Update activity tracking for health check
+             global last_mqtt_tx_time, mqtt_tx_count
+             last_mqtt_tx_time = time.time()
+             mqtt_tx_count += 1
+        else:
+             logger.warning("MQTT publish failed: rc=%s", result.rc)
 
     except Exception as e:
         logger.error("Error processing packet for MQTT: %s", e)
@@ -384,11 +426,17 @@ class MQTTProxyMixin:
 
             # Check for mqttClientProxyMessage (node wants to publish to MQTT)
             if decoded.HasField("mqttClientProxyMessage"):
+                global last_mqtt_tx_time, mqtt_tx_count
                 mqtt_msg = decoded.mqttClientProxyMessage
                 logger.info("Node->MQTT: Topic=%s Size=%d bytes Retained=%s", 
                            mqtt_msg.topic, len(mqtt_msg.data), mqtt_msg.retained)
                 if mqtt_client:
-                    mqtt_client.publish(mqtt_msg.topic, mqtt_msg.data, retain=mqtt_msg.retained)
+                    result = mqtt_client.publish(mqtt_msg.topic, mqtt_msg.data, retain=mqtt_msg.retained)
+                    if result.rc == mqtt.MQTT_ERR_SUCCESS:
+                        last_mqtt_tx_time = time.time()
+                        mqtt_tx_count += 1
+                    else:
+                        logger.warning("MQTT publish failed: rc=%s", result.rc)
             
             # Also handle regular mesh packets for backward compatibility
             elif decoded.packet and decoded.packet.to:
@@ -469,7 +517,7 @@ def main():
     pub.subscribe(on_receive, "proxy.receive.raw")    # Custom event (protobuf)
     
     while running:
-        global iface
+        global iface, last_probe_time
         iface = None
         try:
             # Use factory to create appropriate interface
@@ -498,12 +546,79 @@ def main():
             while running:
                  time.sleep(1)
                  
-                 # Update heartbeat file every 10 seconds
-                 if time.time() - last_heartbeat > 10:
+                 current_time = time.time()
+                 
+                 # Periodic status logging
+                 global last_status_log_time
+                 if current_time - last_status_log_time > HEALTH_CHECK_STATUS_INTERVAL:
+                     time_since_tx = current_time - last_mqtt_tx_time if last_mqtt_tx_time > 0 else -1
+                     time_since_rx = current_time - last_mqtt_rx_time if last_mqtt_rx_time > 0 else -1
+                     
+                     logger.info("=== MQTT Proxy Status ===")
+                     logger.info("  MQTT Connected: %s", mqtt_connected)
+                     logger.info("  Messages TX: %d (last: %s ago)", 
+                                mqtt_tx_count, 
+                                f"{int(time_since_tx)}s" if time_since_tx >= 0 else "never")
+                     logger.info("  Messages RX: %d (last: %s ago)", 
+                                mqtt_rx_count,
+                                f"{int(time_since_rx)}s" if time_since_rx >= 0 else "never")
+                     last_status_log_time = current_time
+                 
+                 # Health check logic
+                 health_ok = True
+                 health_reasons = []
+                 
+                 # Check 1: MQTT must be connected
+                 if not mqtt_connected:
+                     health_ok = False
+                     health_reasons.append("MQTT not connected")
+                 
+                 # Check 2: Must have recent activity (either TX or RX)
+                 # Allow some initial grace period before first message
+                 if last_mqtt_tx_time > 0 or last_mqtt_rx_time > 0:
+                     last_activity = max(last_mqtt_tx_time, last_mqtt_rx_time)
+                     time_since_activity = current_time - last_activity
+                     
+                     if time_since_activity > HEALTH_CHECK_ACTIVITY_TIMEOUT:
+                         health_ok = False
+                         health_reasons.append(f"No activity for {int(time_since_activity)}s (timeout: {HEALTH_CHECK_ACTIVITY_TIMEOUT}s)")
+                     elif time_since_activity > HEALTH_CHECK_ACTIVITY_TIMEOUT * 0.8:
+                         # Warning when approaching timeout (80% threshold)
+                         logger.warning("Health check warning: No MQTT activity for %ds (timeout in %ds)", 
+                                      int(time_since_activity),
+                                      int(HEALTH_CHECK_ACTIVITY_TIMEOUT - time_since_activity))
+                 
+                 # Active Probe Logic
+                 # If idle for more than probe interval, send a dummy text message to the node
+                 # This should trigger a response (packet) from the node, confirming the serial/TCP link is alive
+                 # and that the node is capable of processing messages.
+                 if last_mqtt_tx_time > 0 or last_mqtt_rx_time > 0:
+                      last_activity = max(last_mqtt_tx_time, last_mqtt_rx_time)
+                      time_since_activity = current_time - last_activity
+                      
+                      # Only probe if we haven't probed recently (to avoid flooding)
+                      if time_since_activity > HEALTH_CHECK_PROBE_INTERVAL and (current_time - last_probe_time > HEALTH_CHECK_PROBE_INTERVAL):
+                          try:
+                              logger.info("Sending active probe (heartbeat) to node...")
+                              if iface:
+                                   iface.sendText("mqtt-health", wantAck=False)
+                                   last_probe_time = current_time
+                          except Exception as e:
+                              logger.warning("Failed to send active probe: %s", e)
+
+                 # Update heartbeat file
+                 if current_time - last_heartbeat > 10:
                      try:
-                         with open("/tmp/healthy", "w") as f:
-                             f.write(str(time.time()))
-                         last_heartbeat = time.time()
+                         if health_ok:
+                             with open("/tmp/healthy", "w") as f:
+                                 f.write(str(current_time))
+                             last_heartbeat = current_time
+                         else:
+                             # Remove health file to trigger health check failure
+                             import os as os_module
+                             if os_module.path.exists("/tmp/healthy"):
+                                 os_module.remove("/tmp/healthy")
+                             logger.error("Health check FAILED: %s", ", ".join(health_reasons))
                      except Exception as e:
                          logger.debug("Heartbeat error: %s", e)
                  

@@ -12,7 +12,7 @@ services:
 
       # Node connection settings
       - TCP_NODE_HOST=${TCP_NODE_HOST:-localhost}
-      - TCP_NODE_PORT=${TCP_NODE_PORT:-4403}
+      - TCP_NODE_PORT=${TCP_NODE_PORT:-4404}
       - SERIAL_PORT=${SERIAL_PORT:-/dev/ttyUSB0}
 
       # Logging
@@ -22,6 +22,11 @@ services:
       - TCP_TIMEOUT=${TCP_TIMEOUT:-300} # TCP connection timeout (default: 5 minutes)
       - CONFIG_WAIT_TIMEOUT=${CONFIG_WAIT_TIMEOUT:-60} # Wait for node config (default: 1 minute)
       - POLL_INTERVAL=${POLL_INTERVAL:-1} # Config polling interval (default: 1 second)
+
+      # Health Check Configuration
+      - HEALTH_CHECK_ACTIVITY_TIMEOUT=${HEALTH_CHECK_ACTIVITY_TIMEOUT:-300} # Max idle time before restart (seconds)
+      - HEALTH_CHECK_PROBE_INTERVAL=10 # Short interval for verification
+      - HEALTH_CHECK_STATUS_INTERVAL=${HEALTH_CHECK_STATUS_INTERVAL:-60} # how often to log status (seconds)
 
     healthcheck:
       test: [ "CMD-SHELL", "python3 -c 'import os, time; exit(0) if os.path.exists(\"/tmp/healthy\") and time.time() - os.path.getmtime(\"/tmp/healthy\") < 30 else exit(1)'" ]

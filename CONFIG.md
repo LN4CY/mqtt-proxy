@@ -93,6 +93,20 @@ BLE support requires custom implementation using the `bleak` library. See the [m
 | `CONFIG_WAIT_TIMEOUT` | integer | `60` | Max time to wait for node config (seconds) |
 | `POLL_INTERVAL` | integer | `1` | Config polling interval (seconds) |
 
+### Health Check Settings
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `HEALTH_CHECK_ACTIVITY_TIMEOUT` | integer | `300` | Max time without MQTT activity before health check fails (seconds) |
+| `HEALTH_CHECK_PROBE_INTERVAL` | integer | `150` | Time without activity before sending active probe (seconds, default is 50% of timeout) |
+| `HEALTH_CHECK_STATUS_INTERVAL` | integer | `60` | How often to log status information (seconds) |
+| `MQTT_RECONNECT_DELAY` | integer | `5` | Delay before attempting MQTT reconnection (seconds) |
+
+> [!NOTE]
+> The health check monitors both MQTT connection state and message activity. If the proxy stops sending/receiving messages for longer than `HEALTH_CHECK_ACTIVITY_TIMEOUT`, Docker will automatically restart the container.
+>
+> If the network is idle for `HEALTH_CHECK_PROBE_INTERVAL`, the proxy will send a "mqtt-health" text message to the node to verify connectivity.
+
 ## Meshtastic Node Configuration
 
 The Meshtastic node must have MQTT properly configured for the proxy to work.
@@ -245,6 +259,35 @@ docker compose logs --since=10m mqtt-proxy
 - Check device path: `ls /dev/tty*`
 - Verify device permissions
 - Ensure device is mapped in docker-compose.yml
+
+### Health Check Issues
+
+**Container keeps restarting**
+- Check logs: `docker compose logs --tail=100 mqtt-proxy`
+- Look for "Health check FAILED" messages
+- Common causes:
+  - MQTT broker is down or unreachable
+  - No message activity for > 5 minutes (configurable via `HEALTH_CHECK_ACTIVITY_TIMEOUT`)
+  - Meshtastic node disconnected
+
+**Monitoring container health**
+```bash
+# Check current health status
+docker inspect --format='{{.State.Health.Status}}' mqtt-proxy
+
+# View health check logs
+docker inspect --format='{{range .State.Health.Log}}{{.Output}}{{end}}' mqtt-proxy
+```
+
+**Understanding health check failures**
+The health check monitors:
+1. MQTT connection state (must be connected)
+2. Message activity (must send or receive within timeout period)
+
+Status logs appear every 60 seconds showing:
+- MQTT connection state
+- Message TX/RX counts and last activity time
+- Warnings when approaching activity timeout
 
 ## Performance Tuning
 
