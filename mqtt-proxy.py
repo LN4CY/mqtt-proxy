@@ -395,7 +395,7 @@ class MQTTProxyMixin:
             # Check for mqttClientProxyMessage (node wants to publish to MQTT)
             if decoded.HasField("mqttClientProxyMessage"):
                 mqtt_msg = decoded.mqttClientProxyMessage
-                logger.info("Node→MQTT: Topic=%s Size=%d bytes Retained=%s", 
+                logger.info("Node->MQTT: Topic=%s Size=%d bytes Retained=%s", 
                            mqtt_msg.topic, len(mqtt_msg.data), mqtt_msg.retained)
                 if mqtt_client:
                     mqtt_client.publish(mqtt_msg.topic, mqtt_msg.data, retain=mqtt_msg.retained)
@@ -485,7 +485,7 @@ def main():
             # Use factory to create appropriate interface
             iface = create_interface()
             
-            logger.info("TCP ↔ MQTT transparent proxy connected")
+            logger.info("TCP <-> MQTT transparent proxy connected")
 
             # Post-connection validation check
             # Even if connected, we might have an incomplete node object initially
