@@ -4,12 +4,20 @@
 
 All configuration is done via environment variables in `docker-compose.yml` or `.env` file.
 
+### Interface Selection
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `INTERFACE_TYPE` | `tcp` | Interface type: `tcp`, `serial`, or `ble` |
+
 ### Node Connection
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TCP_NODE_HOST` | `localhost` | Hostname or IP address of the Meshtastic node |
-| `TCP_NODE_PORT` | `4403` | TCP port of the Meshtastic node (Meshtastic default) |
+| `TCP_NODE_HOST` | `localhost` | Hostname or IP address of the Meshtastic node (TCP only) |
+| `TCP_NODE_PORT` | `4403` | TCP port of the Meshtastic node (TCP only) |
+| `SERIAL_PORT` | `/dev/ttyUSB0` | Serial port device path (Serial only) |
+| `BLE_ADDRESS` | `` | Bluetooth MAC address (BLE only, required for BLE) |
 
 ### Logging
 

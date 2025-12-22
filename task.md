@@ -15,24 +15,27 @@
 - [x] Verify no duplicate messages
 - [x] Production hardening (remove hardcoded values, pin dependencies)
 - [x] Documentation (README, CONFIG, walkthrough)
+- [x] Create git repository
 
-## 🔄 Phase 2: Multi-Interface Support (In Progress)
+## ✅ Phase 2: Multi-Interface Support (Complete)
 
 ### Refactoring
-- [/] Extract common `_handleFromRadio()` logic
-- [ ] Create interface factory pattern
-- [ ] Add `INTERFACE_TYPE` environment variable
+- [x] Extract common `_handleFromRadio()` logic into MQTTProxyMixin
+- [x] Create interface factory pattern
+- [x] Add `INTERFACE_TYPE` environment variable
+- [x] Update main() to use factory
+- [x] Update docker-compose.yml with new variables
 
 ### Serial Support
-- [ ] Create `RawSerialInterface` class
-- [ ] Add `SERIAL_PORT` configuration
+- [x] Create `RawSerialInterface` class
+- [x] Add `SERIAL_PORT` configuration
 - [ ] Test with USB-connected node
 - [ ] Update documentation
 
 ### BLE Support
-- [ ] Create `RawBLEInterface` class
-- [ ] Add `BLE_ADDRESS` configuration
-- [ ] Handle Docker BLE requirements
+- [x] Create `RawBLEInterface` class
+- [x] Add `BLE_ADDRESS` configuration
+- [ ] Handle Docker BLE requirements (documentation)
 - [ ] Test with BLE-connected node
 - [ ] Update documentation
 
@@ -40,3 +43,4 @@
 - [ ] Test all three interface types
 - [ ] Update README with interface examples
 - [ ] Update CONFIG.md with new variables
+- [ ] Merge feature branch to master
