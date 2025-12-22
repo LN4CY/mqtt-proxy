@@ -136,6 +136,9 @@ docker compose down
 
 For a seamless integration with [MeshMonitor](https://github.com/Yeraze/meshmonitor), add the proxy as a service in your main `docker-compose.yml`.
 
+> [!IMPORTANT]
+> If you plan to use the MeshMonitor serial bridge or BLE bridge, you **must** use a virtual node enabled configuration for MeshMonitor to ensure proper connectivity.
+
 ### Best Practices (Verified)
 
 1. **Shared Network:** Use a custom bridge network (`meshtastic_net`) for all services to enable service-name discovery.
