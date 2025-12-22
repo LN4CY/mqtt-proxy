@@ -430,12 +430,13 @@ def create_interface():
         )
     elif interface_type == "serial":
         return RawSerialInterface(SERIAL_PORT)
-    elif interface_type == "ble":
-        if not BLE_ADDRESS:
-            raise ValueError("BLE_ADDRESS must be set when using BLE interface")
-        return RawBLEInterface(BLE_ADDRESS)
+    # elif interface_type == "ble":
+    #     # BLE requires custom bleak implementation for Docker compatibility
+    #     if not BLE_ADDRESS:
+    #         raise ValueError("BLE_ADDRESS must be set when using BLE interface")
+    #     return RawBLEInterface(BLE_ADDRESS)
     else:
-        raise ValueError(f"Unknown interface type: {interface_type}. Must be 'tcp', 'serial', or 'ble'")
+        raise ValueError(f"Unknown interface type: {interface_type}. Must be 'tcp' or 'serial' (BLE not yet supported)")
 
 def main():
     logger.info("MQTT Proxy starting (interface: %s)...", INTERFACE_TYPE.upper())
