@@ -119,9 +119,9 @@ def on_mqtt_message_callback(client, userdata, msg):
         to_radio = mesh_pb2.ToRadio()
         to_radio.mqttClientProxyMessage.CopyFrom(mqtt_proxy_msg)
         
-        # Send via the interface - serialize and send the ToRadio protobuf
-        # The interface's _sendToRadio method handles this internally
-        iface._sendToRadio(to_radio.SerializeToString())
+        # Send via the interface's _sendToRadioImpl method (matches iOS app implementation)
+        # Pass the protobuf object directly, not serialized bytes
+        iface._sendToRadioImpl(to_radio)
         
     except Exception as e:
         logger.error("Error handling MQTT message: %s", e)
@@ -357,8 +357,13 @@ class MQTTProxyMixin:
         """
         try:
             # Parse the bytes into a FromRadio object for our inspection
-            decoded = mesh_pb2.FromRadio()
-            decoded.ParseFromString(fromRadio)
+            # Handle both bytes and already-parsed protobuf objects
+            if isinstance(fromRadio, bytes):
+                decoded = mesh_pb2.FromRadio()
+                decoded.ParseFromString(fromRadio)
+            else:
+                # Already a protobuf object
+                decoded = fromRadio
             
             # Check for mqttClientProxyMessage (node wants to publish to MQTT)
             if decoded.HasField("mqttClientProxyMessage"):
