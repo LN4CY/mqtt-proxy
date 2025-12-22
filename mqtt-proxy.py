@@ -306,12 +306,6 @@ def on_receive(packet, interface):
         # MeshMonitor's virtual node uses !10ae8907, so we must match it
         se.gateway_id = f"!{my_node_id}" 
         
-        # Log full structure to prove correctness
-        # try:
-        #      json_debug = json_format.MessageToJson(se, preserving_proto_field_name=True)
-        #      logger.info("Envelope Structure: %s", json_debug)
-        # except: pass 
-        
         # Topic: msh/REGION/2/[sub]/CHANNEL/!NODEID
         from_node_num = getattr(mesh_packet, "from")
         from_node_hex = "!{:08x}".format(from_node_num)
@@ -329,7 +323,7 @@ def on_receive(packet, interface):
             pnum = mesh_packet.decoded.portnum
             
             # Debug: what is the actual pnum integer?
-            logger.info("Packet Pnum: %s (Type: %s)", pnum, type(pnum))
+            logger.debug("Packet Pnum: %s (Type: %s)", pnum, type(pnum))
             
             # Constants from PortNum enum (Verified from logs/proto)
             # NODEINFO_APP = 4
@@ -349,7 +343,7 @@ def on_receive(packet, interface):
         topic = f"{root_topic}/2/{sub_topic}/{chan_name}/{from_node_hex}"
         
         payload = se.SerializeToString()
-        logger.info("Publishing to MQTT: Topic=%s (Size=%d bytes) [From=%s Ch=%s] Retain=%s", 
+        logger.debug("Publishing to MQTT: Topic=%s (Size=%d bytes) [From=%s Ch=%s] Retain=%s", 
             topic, len(payload), from_node_hex, chan_name, should_retain)
         
         mqtt_client.publish(topic, payload, retain=should_retain)
