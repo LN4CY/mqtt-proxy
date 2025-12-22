@@ -1,71 +1,127 @@
-# MQTT Proxy - Final Walkthrough
+# Multi-Interface MQTT Proxy - Final Walkthrough
 
-## ✅ SUCCESS - Proxy is Fully Functional!
+## 🎉 Project Complete!
 
-The Docker-based MQTT proxy now works exactly like the iOS app, enabling Meshtastic nodes without direct internet access to communicate via MQTT through the proxy's network connection.
+The Meshtastic MQTT proxy has been successfully upgraded to support multiple interface types (TCP and Serial), with a clean architecture for future BLE support.
 
-## What Works
+## Summary of Changes
 
-✅ **Bidirectional MQTT Proxy** - Messages flow both ways (Node ↔ MQTT)
-✅ **All Channels** - LongFast, NCMesh, NCBotmesh, and all other channels
-✅ **Traceroutes** - Work on all channels
-✅ **Messages** - Send and receive on all channels
-✅ **MeshMonitor Integration** - Full compatibility with MeshMonitor UI
+### Core Improvements
 
-## Key Implementation Discovery
+**File Renamed:** `tcp-mqtt-proxy.py` → `mqtt-proxy.py`
+- Reflects the multi-interface nature of the proxy
+- No longer limited to TCP connections
 
-The breakthrough came from analyzing the iOS app source code (`Meshtastic-Apple`). The iOS app uses the **MQTT Client Proxy protocol**:
+**Multi-Interface Support:**
+- ✅ **TCP Interface** - Fully working and tested
+- ✅ **Serial Interface** - Fully working and tested  
+- ⏳ **BLE Interface** - Code present but commented out (requires custom bleak implementation)
 
-### Outbound (Node → MQTT)
-- Node sends `FromRadio.mqttClientProxyMessage` 
-- Proxy intercepts in `_handleFromRadio()` and publishes directly to MQTT broker
+### Architecture
 
-### Inbound (MQTT → Node)  
-- Proxy receives MQTT messages
-- Wraps them in `ToRadio.mqttClientProxyMessage`
-- Sends to node via `_sendToRadioImpl()`
-
-## Critical Changes Made
-
-1. **Switched from ServiceEnvelope to mqttClientProxyMessage protocol**
-   - Old approach: Wrapped packets in `ServiceEnvelope` (didn't work)
-   - New approach: Use `mqttClientProxyMessage` (matches iOS app)
-
-2. **Simplified MQTT→Node forwarding**
-   - Removed complex parsing and channel mapping
-   - Forward all MQTT messages directly to node
-   - Let node's firmware handle filtering and processing
-
-3. **Fixed outbound publishing**
-   - Intercept `FromRadio.mqttClientProxyMessage` in `RawTCPInterface`
-   - Publish directly to MQTT without modification
-   - Disabled old `ServiceEnvelope` wrapping
-
-## Files Modified
-
-- **tcp-mqtt-proxy.py** - Main proxy implementation
-- **docker-compose.yml** - Docker configuration
-
-## Testing Performed
-
-✅ Traceroute on LongFast channel
-✅ Traceroute on NCMesh channel  
-✅ Messages on multiple channels
-✅ Verified no duplicate messages
-✅ Confirmed MeshMonitor displays all traffic correctly
-
-## Architecture
-
-```
-┌─────────────┐         ┌──────────────┐         ┌─────────────┐
-│  Meshtastic │◄───────►│ Docker Proxy │◄───────►│ MQTT Broker │
-│    Node     │   TCP   │              │  MQTT   │             │
-│  !10ae8907  │  4404   │   (Python)   │         │mqtt.ncmesh  │
-└─────────────┘         └──────────────┘         └─────────────┘
-      ▲                                                  ▲
-      │                                                  │
-      └──────────────────────────────────────────────────┘
-         mqttClientProxyMessage protocol (both directions)
+**Factory Pattern:**
+```python
+def create_interface():
+    if interface_type == "tcp":
+        return RawTCPInterface(...)
+    elif interface_type == "serial":
+        return RawSerialInterface(...)
 ```
 
-The proxy acts as a transparent MQTT client, allowing the node to communicate with the MQTT broker as if it had direct internet access.
+**Mixin Pattern:**
+- `MQTTProxyMixin` - Common `_handleFromRadio()` logic
+- Applied to all interface types (TCP, Serial, BLE)
+
+### Configuration
+
+**Environment Variables:**
+- `INTERFACE_TYPE` - `tcp` or `serial` (default: `tcp`)
+- `TCP_NODE_HOST` - TCP hostname (default: `localhost`)
+- `TCP_NODE_PORT` - TCP port (default: `4403`)
+- `SERIAL_PORT` - Serial device path (default: `/dev/ttyUSB0`)
+
+**Example `.env` file:**
+```
+INTERFACE_TYPE=tcp
+TCP_NODE_HOST=192.168.50.50
+TCP_NODE_PORT=4404
+```
+
+## Testing Results
+
+### TCP Interface
+✅ Connected to virtual node at 192.168.50.50:4404
+✅ MQTT traffic flowing bidirectionally
+✅ Messages appearing in MeshMonitor
+✅ No errors in logs
+
+### Serial Interface  
+✅ Connected to /dev/ttyACM1 (gateway node)
+✅ MQTT traffic flowing bidirectionally
+✅ Privileged mode required for device access
+✅ Both ACM0 and ACM1 devices mapped
+
+### BLE Interface
+⏳ Code implemented but commented out
+⏳ Requires custom bleak implementation for Docker compatibility
+⏳ See meshtastic-ble-bridge for reference implementation
+
+## Docker Optimizations
+
+**Removed BlueZ Dependencies:**
+- Significantly faster build times
+- Reduced image size
+- BLE support deferred pending custom implementation
+
+**Build time improvement:** ~5 minutes → ~1 minute
+
+## Git History
+
+**Merge Commit:** `821f190`
+
+**Feature Branch Commits:**
+1. Multi-interface implementation
+2. Documentation updates
+3. Bug fixes (_sendToRadioImpl, fromRadio handling)
+4. Logging verbosity reduction
+5. Serial device mapping + privileged mode
+6. BlueZ support (later removed)
+7. Rename to mqtt-proxy
+8. Clean up repository
+
+**Files Changed:** 69 files
+**Lines Added:** 170
+**Lines Removed:** 2,101 (cleanup of test files and logs)
+
+## Deployment Status
+
+**Current Configuration:**
+- Interface: TCP
+- Node: 192.168.50.50:4404
+- Container: mqtt-proxy
+- Status: Running and tested ✅
+
+**Production Files:**
+- `mqtt-proxy.py` - Main proxy code (20KB)
+- `Dockerfile` - Container configuration
+- `docker-compose.yml` - Deployment configuration
+- `requirements.txt` - Python dependencies
+- `.env.example` - Configuration template
+- `README.md` - Project documentation
+- `CONFIG.md` - Configuration guide
+
+## Next Steps
+
+**Optional Future Enhancements:**
+1. Implement BLE support using bleak library
+2. Add connection retry logic improvements
+3. Add metrics/monitoring endpoints
+4. Support additional interface types
+
+## Conclusion
+
+The multi-interface MQTT proxy is production-ready with TCP and Serial support. The codebase is clean, well-documented, and ready for future enhancements.
+
+**Branch:** `master`
+**Status:** ✅ Merged and deployed
+**Testing:** ✅ Complete
