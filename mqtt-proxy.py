@@ -168,7 +168,9 @@ def on_connection(interface, **kwargs):
         current_mqtt_cfg = cfg
         
         if not getattr(cfg, 'enabled', False):
-            logger.warning("MQTT is NOT enabled in node config. Proxy may not do anything.")
+            logger.warning("MQTT is NOT enabled in node config! Please enable it via 'meshtastic --set mqtt.enabled true'")
+            # We continue anyway, as the user might want us to act as the MQTT client despite node settings,
+            # but usually the node won't send us anything if disabled.
         
         # Safely get attributes with defaults
         mqtt_address = getattr(cfg, 'address', None)
@@ -176,6 +178,9 @@ def on_connection(interface, **kwargs):
         mqtt_username = getattr(cfg, 'username', None)
         mqtt_password = getattr(cfg, 'password', None)
         mqtt_root = getattr(cfg, 'root', 'msh')
+    else:
+        logger.warning("No MQTT configuration found on node! Please configure MQTT settings on the device.")
+        return
         
         logger.info("Starting MQTT Client...")
         logger.info("  Server: %s:%d", mqtt_address, mqtt_port)
