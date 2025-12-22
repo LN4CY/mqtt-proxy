@@ -5,9 +5,14 @@ services:
     container_name: mqtt-proxy
     restart: unless-stopped
     environment:
+      # Interface selection
+      - INTERFACE_TYPE=${INTERFACE_TYPE:-tcp}  # tcp, serial, or ble
+      
       # Node connection settings
       - TCP_NODE_HOST=${TCP_NODE_HOST:-localhost}
       - TCP_NODE_PORT=${TCP_NODE_PORT:-4403}
+      - SERIAL_PORT=${SERIAL_PORT:-/dev/ttyUSB0}
+      - BLE_ADDRESS=${BLE_ADDRESS:-}
       
       # Logging
       - LOG_LEVEL=${LOG_LEVEL:-INFO}

@@ -10,6 +10,8 @@ import paho.mqtt.client as mqtt
 
 import meshtastic
 from meshtastic.tcp_interface import TCPInterface
+from meshtastic.serial_interface import SerialInterface
+from meshtastic.ble_interface import BLEInterface
 from meshtastic import mesh_pb2, mqtt_pb2
 # from google.protobuf.json_format import ParseDict # Unused
 from google.protobuf import json_format
@@ -23,10 +25,20 @@ logging.basicConfig(
     level=log_level,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
-logger = logging.getLogger("tcp-mqtt-proxy")
+logger = logging.getLogger("mqtt-proxy")
 
+# Interface configuration
+INTERFACE_TYPE = os.environ.get("INTERFACE_TYPE", "tcp").lower()
+
+# TCP configuration
 TCP_NODE_HOST = os.environ.get("TCP_NODE_HOST", "localhost")
-TCP_NODE_PORT = int(os.environ.get("TCP_NODE_PORT", "4404"))
+TCP_NODE_PORT = int(os.environ.get("TCP_NODE_PORT", "4403"))
+
+# Serial configuration
+SERIAL_PORT = os.environ.get("SERIAL_PORT", "/dev/ttyUSB0")
+
+# BLE configuration
+BLE_ADDRESS = os.environ.get("BLE_ADDRESS", "")
 
 # Timeout configurations (in seconds)
 TCP_TIMEOUT = int(os.environ.get("TCP_TIMEOUT", "300"))  # 5 minutes default
@@ -330,22 +342,20 @@ def on_receive(packet, interface):
 
 
 # ---------------------------------------------------------------------
-# Custom Interface for Raw Packet Interception
+# Custom Interface Classes for Raw Packet Interception
 # ---------------------------------------------------------------------
-class RawTCPInterface(TCPInterface):
+class MQTTProxyMixin:
     """
-    Subclass of TCPInterface that intercepts packets BEFORE they are converted
-    to dictionaries by the meshtastic library.
+    Mixin class that provides common _handleFromRadio() logic for all interface types.
+    This intercepts mqttClientProxyMessage from the node and publishes to MQTT.
     """
     def _handleFromRadio(self, fromRadio):
         """
         Override internal library method to capture raw protobufs.
         fromRadio is a mesh_pb2.FromRadio protobuf object OR bytes depending on version.
-        In this version, it seems to be bytes (serialized protobuf).
         """
         try:
             # Parse the bytes into a FromRadio object for our inspection
-            # We don't modify the original 'fromRadio' bytes passed to super
             decoded = mesh_pb2.FromRadio()
             decoded.ParseFromString(fromRadio)
             
@@ -363,7 +373,7 @@ class RawTCPInterface(TCPInterface):
                 # using a custom topic 'proxy.receive.raw'
                 pub.sendMessage("proxy.receive.raw", packet=decoded.packet, interface=self)
         except Exception as e:
-            logger.error("Error in RawTCPInterface interception: %s", e)
+            logger.error("Error in MQTT proxy interception: %s", e)
 
         # Always call super to let the library maintain its state (nodes, peers, etc.)
         try:
@@ -371,11 +381,53 @@ class RawTCPInterface(TCPInterface):
         except DecodeError as e:
             logger.error("Protobuf Decode Error (suppressed): %s", e)
         except Exception as e:
-            # We must be careful not to swallow all errors, but library crashing is bad.
             logger.error("Error in StreamInterface processing: %s", e)
 
+
+class RawTCPInterface(MQTTProxyMixin, TCPInterface):
+    """TCP interface with MQTT proxy support"""
+    pass
+
+
+class RawSerialInterface(MQTTProxyMixin, SerialInterface):
+    """Serial interface with MQTT proxy support"""
+    pass
+
+
+class RawBLEInterface(MQTTProxyMixin, BLEInterface):
+    """BLE interface with MQTT proxy support"""
+    pass
+
+
+# ---------------------------------------------------------------------
+# Interface Factory
+# ---------------------------------------------------------------------
+def create_interface():
+    """
+    Factory function to create the appropriate interface based on INTERFACE_TYPE.
+    Returns the configured interface instance.
+    """
+    interface_type = INTERFACE_TYPE
+    
+    logger.info("Creating %s interface...", interface_type.upper())
+    
+    if interface_type == "tcp":
+        return RawTCPInterface(
+            TCP_NODE_HOST,
+            portNumber=TCP_NODE_PORT,
+            timeout=TCP_TIMEOUT
+        )
+    elif interface_type == "serial":
+        return RawSerialInterface(SERIAL_PORT)
+    elif interface_type == "ble":
+        if not BLE_ADDRESS:
+            raise ValueError("BLE_ADDRESS must be set when using BLE interface")
+        return RawBLEInterface(BLE_ADDRESS)
+    else:
+        raise ValueError(f"Unknown interface type: {interface_type}. Must be 'tcp', 'serial', or 'ble'")
+
 def main():
-    logger.info("TCP-MQTT Proxy starting...")
+    logger.info("MQTT Proxy starting (interface: %s)...", INTERFACE_TYPE.upper())
     
     # Subscribe to events once
     pub.subscribe(on_connection, "meshtastic.connection.established")
@@ -387,14 +439,8 @@ def main():
         global iface
         iface = None
         try:
-            logger.info("Connecting to TCP node %s:%d", TCP_NODE_HOST, TCP_NODE_PORT)
-            
-            # Use our custom RawTCPInterface
-            iface = RawTCPInterface(
-                TCP_NODE_HOST,
-                portNumber=TCP_NODE_PORT,
-                timeout=TCP_TIMEOUT
-            )
+            # Use factory to create appropriate interface
+            iface = create_interface()
             
             logger.info("TCP ↔ MQTT transparent proxy connected")
 
