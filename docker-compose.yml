@@ -6,13 +6,12 @@ services:
     restart: unless-stopped
     environment:
       # Interface selection
-      - INTERFACE_TYPE=${INTERFACE_TYPE:-tcp}  # tcp, serial, or ble
+      - INTERFACE_TYPE=${INTERFACE_TYPE:-tcp}  # tcp or serial (BLE not yet supported)
       
       # Node connection settings
       - TCP_NODE_HOST=${TCP_NODE_HOST:-localhost}
       - TCP_NODE_PORT=${TCP_NODE_PORT:-4403}
       - SERIAL_PORT=${SERIAL_PORT:-/dev/ttyUSB0}
-      - BLE_ADDRESS=${BLE_ADDRESS:-}
       
       # Logging
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
@@ -23,15 +22,10 @@ services:
       - POLL_INTERVAL=${POLL_INTERVAL:-1}         # Config polling interval (default: 1 second)
     volumes:
       - ./mqtt-proxy.py:/app/mqtt-proxy.py
-      - /var/run/dbus:/var/run/dbus  # Required for BLE access
-      - /var/lib/bluetooth:/var/lib/bluetooth:ro  # Required for BLE pairing data
     devices:
-      # Serial devices for Meshtastic nodes
+      # Serial devices for Meshtastic nodes (uncomment for serial interface)
       - /dev/ttyACM0:/dev/ttyACM0
       - /dev/ttyACM1:/dev/ttyACM1
       # - /dev/ttyUSB0:/dev/ttyUSB0
-    cap_add:
-      - NET_ADMIN  # Required for BLE
-      - SYS_ADMIN  # Required for BLE
     privileged: true  # Required for serial device access
     network_mode: host
