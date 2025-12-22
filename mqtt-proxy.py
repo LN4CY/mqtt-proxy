@@ -338,7 +338,7 @@ def on_receive(packet, interface):
         # Security/Optimization: Strip the 'decoded' (plaintext) field before publishing.
         # We only want to send the encrypted 'payload' to the MQTT mesh, matching "Over-the-Air" behavior.
         # Logic matches iOS/Android apps which don't leak plaintext to MQTT.
-        # se.packet.ClearField("decoded") # Re-enabled to match iOS proxy behavior
+        se.packet.ClearField("decoded") # Re-enabled to match iOS proxy behavior
 
         topic = f"{root_topic}/2/{sub_topic}/{chan_name}/{from_node_hex}"
         
