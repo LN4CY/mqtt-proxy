@@ -1,62 +1,326 @@
-# MQTT Proxy Configuration Reference
+# Configuration Guide
+
+Complete configuration reference for the Meshtastic MQTT Proxy.
+
+## Interface Configuration
+
+### TCP Interface
+
+Connect to a Meshtastic node via TCP network connection.
+
+**Use Cases:**
+- MeshMonitor virtual node
+- Meshtastic devices with network connectivity
+- Remote node access
+
+**Configuration:**
+```env
+INTERFACE_TYPE=tcp
+TCP_NODE_HOST=192.168.1.100
+TCP_NODE_PORT=4403
+TCP_TIMEOUT=300
+```
+
+**Parameters:**
+- `TCP_NODE_HOST` - Hostname or IP address of the Meshtastic node
+- `TCP_NODE_PORT` - TCP port (default: 4403, MeshMonitor virtual node: 4404)
+- `TCP_TIMEOUT` - Connection timeout in seconds (default: 300)
+
+### Serial Interface
+
+Connect to a USB-connected Meshtastic device.
+
+**Use Cases:**
+- Direct USB connection to Meshtastic device
+- Raspberry Pi with USB radio
+- Development and testing
+
+**Configuration:**
+```env
+INTERFACE_TYPE=serial
+SERIAL_PORT=/dev/ttyACM0
+```
+
+**Parameters:**
+- `SERIAL_PORT` - Device path (Linux: `/dev/ttyACM0`, `/dev/ttyUSB0`)
+
+**Finding Your Serial Port:**
+```bash
+# List all serial devices
+ls /dev/tty*
+
+# Or use dmesg to see recent connections
+dmesg | grep tty
+```
+
+**Docker Requirements:**
+- Device must be mapped in docker-compose.yml
+- Privileged mode required (already configured)
+
+### BLE Interface
+
+**Status:** Not yet supported (code present but commented out)
+
+BLE support requires custom implementation using the `bleak` library. See the [meshtastic-ble-bridge](https://github.com/Yeraze/meshtastic-ble-bridge) project for reference.
 
 ## Environment Variables
 
-All configuration is done via environment variables in `docker-compose.yml` or `.env` file.
+### Core Settings
 
-### Interface Selection
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `INTERFACE_TYPE` | string | `tcp` | Interface type: `tcp` or `serial` |
+| `LOG_LEVEL` | string | `INFO` | Logging level: `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `INTERFACE_TYPE` | `tcp` | Interface type: `tcp`, `serial`, or `ble` |
+### TCP Settings
 
-### Node Connection
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `TCP_NODE_HOST` | string | `localhost` | TCP hostname or IP address |
+| `TCP_NODE_PORT` | integer | `4403` | TCP port number |
+| `TCP_TIMEOUT` | integer | `300` | Connection timeout (seconds) |
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `TCP_NODE_HOST` | `localhost` | Hostname or IP address of the Meshtastic node (TCP only) |
-| `TCP_NODE_PORT` | `4403` | TCP port of the Meshtastic node (TCP only) |
-| `SERIAL_PORT` | `/dev/ttyUSB0` | Serial port device path (Serial only) |
-| `BLE_ADDRESS` | `` | Bluetooth MAC address (BLE only, required for BLE) |
+### Serial Settings
 
-### Logging
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `SERIAL_PORT` | string | `/dev/ttyUSB0` | Serial device path |
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `LOG_LEVEL` | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR) |
+### Advanced Settings
 
-### Timeouts
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `CONFIG_WAIT_TIMEOUT` | integer | `60` | Max time to wait for node config (seconds) |
+| `POLL_INTERVAL` | integer | `1` | Config polling interval (seconds) |
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `TCP_TIMEOUT` | `300` | TCP connection timeout in seconds (5 minutes) |
-| `CONFIG_WAIT_TIMEOUT` | `60` | Maximum time to wait for node configuration in seconds (1 minute) |
-| `POLL_INTERVAL` | `1` | Configuration polling interval in seconds |
+## Meshtastic Node Configuration
 
-## Example Configuration
+The Meshtastic node must have MQTT properly configured for the proxy to work.
 
-### Basic Setup (docker-compose.yml)
+### Required Settings
+
+Check your node configuration:
+```bash
+meshtastic --get mqtt
+```
+
+**Required values:**
+```
+mqtt.enabled: True
+mqtt.proxy_to_client_enabled: True
+mqtt.address: <your-mqtt-broker>
+mqtt.username: <mqtt-username>
+mqtt.password: <mqtt-password>
+```
+
+### Enabling MQTT Proxy
+
+If not enabled, configure your node:
+```bash
+meshtastic --set mqtt.enabled true
+meshtastic --set mqtt.proxy_to_client_enabled true
+meshtastic --set mqtt.address mqtt.example.com
+meshtastic --set mqtt.username myuser
+meshtastic --set mqtt.password mypass
+```
+
+## Docker Compose Configuration
+
+### Basic Setup
+
 ```yaml
 services:
   mqtt-proxy:
+    build: .
+    image: mqtt-proxy
+    container_name: mqtt-proxy
+    restart: unless-stopped
     environment:
-      - TCP_NODE_HOST=192.168.1.100
-      - TCP_NODE_PORT=4404
-      - LOG_LEVEL=INFO
+      - INTERFACE_TYPE=${INTERFACE_TYPE:-tcp}
+      - TCP_NODE_HOST=${TCP_NODE_HOST:-localhost}
+      - TCP_NODE_PORT=${TCP_NODE_PORT:-4403}
+    network_mode: host
 ```
 
-### Custom Timeouts (.env file)
-```bash
-TCP_NODE_HOST=meshtastic.local
+### Serial Interface Setup
+
+For serial connections, add device mapping:
+
+```yaml
+services:
+  mqtt-proxy:
+    # ... other config ...
+    devices:
+      - /dev/ttyACM0:/dev/ttyACM0
+    privileged: true
+```
+
+## Example Configurations
+
+### MeshMonitor Virtual Node
+
+```env
+INTERFACE_TYPE=tcp
+TCP_NODE_HOST=192.168.1.100
 TCP_NODE_PORT=4404
-TCP_TIMEOUT=600          # 10 minutes for slow networks
-CONFIG_WAIT_TIMEOUT=120  # 2 minutes for slow nodes
-LOG_LEVEL=DEBUG          # Verbose logging
+LOG_LEVEL=INFO
 ```
 
-## Notes
+### USB-Connected Device
 
-- **No hardcoded values**: All configuration is via environment variables
-- **Channel configuration**: Automatically read from the connected node
-- **MQTT settings**: Automatically read from the node's MQTT module configuration
-- **Fully portable**: Works with any Meshtastic node without code changes
+```env
+INTERFACE_TYPE=serial
+SERIAL_PORT=/dev/ttyACM0
+LOG_LEVEL=INFO
+```
+
+### Development/Debug
+
+```env
+INTERFACE_TYPE=tcp
+TCP_NODE_HOST=localhost
+TCP_NODE_PORT=4403
+LOG_LEVEL=DEBUG
+CONFIG_WAIT_TIMEOUT=120
+```
+
+## Logging
+
+### Log Levels
+
+- `DEBUG` - Detailed debugging information (verbose)
+- `INFO` - General informational messages (default)
+- `WARNING` - Warning messages
+- `ERROR` - Error messages only
+
+### Viewing Logs
+
+```bash
+# Follow logs in real-time
+docker compose logs -f mqtt-proxy
+
+# View last 100 lines
+docker compose logs --tail=100 mqtt-proxy
+
+# View logs since 10 minutes ago
+docker compose logs --since=10m mqtt-proxy
+```
+
+### Log Output Examples
+
+**Successful Connection:**
+```
+[INFO] MQTT Proxy starting (interface: TCP)...
+[INFO] Creating TCP interface...
+[INFO] Connected to node !10ae8907
+[INFO] Starting MQTT Client...
+[INFO] MQTT Connected with result code: 0
+```
+
+**MQTT Traffic:**
+```
+[INFO] MQTT RX (Forwarding): Topic=msh/US/2/e/LongFast/!12345678 Size=156 bytes
+[INFO] Node→MQTT: Topic=msh/US/2/e/LongFast/!87654321 Size=142 bytes
+```
+
+## Troubleshooting
+
+### Common Issues
+
+**"No localNode available"**
+- Node not responding
+- Check connection settings
+- Verify node is powered on
+
+**"MQTT is NOT enabled in node config"**
+- Enable MQTT on node: `meshtastic --set mqtt.enabled true`
+- Enable proxy mode: `meshtastic --set mqtt.proxy_to_client_enabled true`
+
+**"Connection timeout"**
+- Increase `TCP_TIMEOUT`
+- Check network connectivity
+- Verify firewall rules
+
+**Serial device not found**
+- Check device path: `ls /dev/tty*`
+- Verify device permissions
+- Ensure device is mapped in docker-compose.yml
+
+## Performance Tuning
+
+### Timeout Settings
+
+Adjust timeouts based on your network:
+
+```env
+# Slow/unreliable network
+TCP_TIMEOUT=600
+CONFIG_WAIT_TIMEOUT=120
+
+# Fast/reliable network
+TCP_TIMEOUT=60
+CONFIG_WAIT_TIMEOUT=30
+```
+
+### Polling Interval
+
+Adjust config polling frequency:
+
+```env
+# More responsive (higher CPU)
+POLL_INTERVAL=0.5
+
+# Less responsive (lower CPU)
+POLL_INTERVAL=2
+```
+
+## Security Considerations
+
+### Network Security
+
+- Use firewall rules to restrict TCP access
+- Consider VPN for remote connections
+- Use strong MQTT credentials
+
+### Docker Security
+
+- Run with minimal privileges when possible
+- Keep Docker images updated
+- Review docker-compose.yml security settings
+
+## Advanced Topics
+
+### Multiple Proxies
+
+Run multiple proxy instances for different nodes:
+
+```yaml
+services:
+  mqtt-proxy-1:
+    # ... config for node 1 ...
+    
+  mqtt-proxy-2:
+    # ... config for node 2 ...
+```
+
+### Custom Docker Network
+
+Use bridge network instead of host mode:
+
+```yaml
+services:
+  mqtt-proxy:
+    # ... other config ...
+    networks:
+      - mqtt-network
+    ports:
+      - "4403:4403"
+
+networks:
+  mqtt-network:
+    driver: bridge
+```
+
+---
+
+For more information, see [README.md](README.md) or open an issue on GitHub.

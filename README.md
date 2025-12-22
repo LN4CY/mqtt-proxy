@@ -1,106 +1,236 @@
-# Meshtastic MQTT Client Proxy
+# Meshtastic MQTT Proxy
 
-A Docker-based transparent MQTT proxy for Meshtastic nodes, enabling nodes without direct internet access to communicate via MQTT through the proxy's network connection.
-
-**Supports TCP, Serial, and BLE connections!**
+A production-ready MQTT proxy for Meshtastic devices that enables bidirectional message forwarding between Meshtastic nodes and MQTT brokers. Supports multiple interface types (TCP, Serial) with a clean factory pattern architecture.
 
 ## Features
 
-✅ **Multi-Interface Support** - Works with TCP, Serial (USB), and BLE connections  
-✅ **Bidirectional MQTT Proxy** - Full Node ↔ MQTT communication  
-✅ **All Channels Supported** - Works with any channel configuration  
-✅ **Zero Configuration** - Automatically reads settings from node  
-✅ **Production Ready** - Fully configurable via environment variables  
-✅ **iOS App Compatible** - Uses same `mqttClientProxyMessage` protocol
+- ✅ **Multi-Interface Support** - TCP and Serial connections to Meshtastic nodes
+- ✅ **Bidirectional Forwarding** - Messages flow both ways between node and MQTT broker
+- ✅ **mqttClientProxyMessage Protocol** - Implements Meshtastic's official proxy protocol
+- ✅ **Docker Containerized** - Easy deployment with Docker Compose
+- ✅ **Environment Configuration** - Flexible configuration via environment variables
+- ✅ **Production Ready** - Error handling, logging, and automatic reconnection
+- ✅ **Channel Support** - Works with all Meshtastic channels and message types
+- ✅ **MeshMonitor Compatible** - Seamless integration with MeshMonitor and other tools
 
 ## Quick Start
 
-1. **Clone or copy the files:**
-   - `tcp-mqtt-proxy.py`
-   - `docker-compose.yml`
-   - `Dockerfile`
+### Prerequisites
 
-2. **Configure (optional):**
-   ```bash
-   # Create .env file or edit docker-compose.yml
-   TCP_NODE_HOST=192.168.1.100  # Your node's IP
-   TCP_NODE_PORT=4403           # Default Meshtastic port
-   ```
+- Docker and Docker Compose
+- Meshtastic node (accessible via TCP or Serial)
+- MQTT broker (configured on your Meshtastic node)
 
-3. **Run:**
-   ```bash
-   docker compose up -d
-   ```
+### Installation
 
-4. **Verify:**
-   ```bash
-   docker compose logs -f mqtt-proxy
-   ```
-
-## Configuration
-
-See [CONFIG.md](CONFIG.md) for all available environment variables.
-
-### Common Configurations
-
-**Local node:**
-```yaml
-TCP_NODE_HOST=localhost
-TCP_NODE_PORT=4403
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/meshtastic-mqtt-proxy.git
+cd meshtastic-mqtt-proxy
 ```
 
-**Remote node:**
-```yaml
+2. Create `.env` file:
+```bash
+cp .env.example .env
+```
+
+3. Configure your connection in `.env`:
+```env
+INTERFACE_TYPE=tcp
 TCP_NODE_HOST=192.168.1.100
 TCP_NODE_PORT=4403
 ```
 
-**Debug mode:**
-```yaml
-LOG_LEVEL=DEBUG
+4. Start the proxy:
+```bash
+docker compose up -d
 ```
 
-## How It Works
+## Configuration
 
-The proxy connects to a Meshtastic node via TCP and acts as an MQTT client on behalf of the node:
+### Interface Types
 
-1. **Node → MQTT**: Intercepts `mqttClientProxyMessage` from node and publishes to MQTT broker
-2. **MQTT → Node**: Receives MQTT messages and forwards as `mqttClientProxyMessage` to node
-3. **Automatic Configuration**: Reads MQTT settings and channel config from node
+**TCP Interface** (default):
+```env
+INTERFACE_TYPE=tcp
+TCP_NODE_HOST=localhost
+TCP_NODE_PORT=4403
+```
 
-## Requirements
+**Serial Interface**:
+```env
+INTERFACE_TYPE=serial
+SERIAL_PORT=/dev/ttyACM0
+```
 
-- Docker & Docker Compose
-- Meshtastic node with TCP interface enabled
-- Node must have MQTT module configured with `proxyToClientEnabled=true`
+### Environment Variables
 
-## Troubleshooting
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `INTERFACE_TYPE` | `tcp` | Interface type: `tcp` or `serial` |
+| `TCP_NODE_HOST` | `localhost` | TCP hostname or IP address |
+| `TCP_NODE_PORT` | `4403` | TCP port number |
+| `SERIAL_PORT` | `/dev/ttyUSB0` | Serial device path |
+| `LOG_LEVEL` | `INFO` | Logging level |
+| `TCP_TIMEOUT` | `300` | TCP connection timeout (seconds) |
+| `CONFIG_WAIT_TIMEOUT` | `60` | Node config wait timeout (seconds) |
+| `POLL_INTERVAL` | `1` | Config polling interval (seconds) |
 
-**Proxy won't connect:**
-- Verify `TCP_NODE_HOST` and `TCP_NODE_PORT` are correct
-- Ensure node has TCP interface enabled
-- Check firewall rules
+See [CONFIG.md](CONFIG.md) for detailed configuration options.
 
-**No MQTT traffic:**
-- Verify node's MQTT module is enabled
-- Ensure `proxyToClientEnabled=true` on node
-- Check MQTT broker credentials in node config
+## Usage
 
-**See logs:**
+### TCP Interface
+
+Connect to a Meshtastic node via TCP (e.g., MeshMonitor's virtual node):
+
+```bash
+# .env
+INTERFACE_TYPE=tcp
+TCP_NODE_HOST=192.168.1.100
+TCP_NODE_PORT=4404
+```
+
+### Serial Interface
+
+Connect to a USB-connected Meshtastic device:
+
+```bash
+# .env
+INTERFACE_TYPE=serial
+SERIAL_PORT=/dev/ttyACM0
+```
+
+**Note:** Serial interface requires privileged mode (already configured in docker-compose.yml).
+
+### Viewing Logs
+
 ```bash
 docker compose logs -f mqtt-proxy
 ```
 
+### Stopping the Proxy
+
+```bash
+docker compose down
+```
+
 ## Architecture
+
+The proxy uses a factory pattern to support multiple interface types:
 
 ```
 ┌─────────────┐         ┌──────────────┐         ┌─────────────┐
-│  Meshtastic │◄───────►│ Docker Proxy │◄───────►│ MQTT Broker │
-│    Node     │   TCP   │              │  MQTT   │             │
-└─────────────┘  4403   │   (Python)   │         └─────────────┘
-                        └──────────────┘
+│  Meshtastic │ ◄─────► │  MQTT Proxy  │ ◄─────► │ MQTT Broker │
+│    Node     │         │              │         │             │
+└─────────────┘         └──────────────┘         └─────────────┘
+   TCP/Serial          mqttClientProxy           MQTT Protocol
 ```
+
+### Key Components
+
+- **MQTTProxyMixin** - Common message handling logic
+- **RawTCPInterface** - TCP connection implementation
+- **RawSerialInterface** - Serial connection implementation
+- **Factory Pattern** - Dynamic interface selection
+
+## How It Works
+
+1. **Node → MQTT**: Proxy receives `mqttClientProxyMessage` from node and publishes to MQTT broker
+2. **MQTT → Node**: Proxy subscribes to MQTT topics and forwards messages to node as `mqttClientProxyMessage`
+3. **Transparent Operation**: Node firmware handles encryption, channel mapping, and routing
+
+## Requirements
+
+- Python 3.9+
+- Docker & Docker Compose
+- Meshtastic node with MQTT enabled and `proxy_to_client_enabled: true`
+
+### Python Dependencies
+
+- meshtastic==2.7.5
+- paho-mqtt==2.1.0
+- pubsub==4.0.7
+- protobuf>=3.20.0,<6.0.0
+
+## Troubleshooting
+
+### Connection Issues
+
+**TCP Connection Fails:**
+- Verify node IP and port
+- Check firewall rules
+- Ensure node is running
+
+**Serial Connection Fails:**
+- Check device path (`ls /dev/tty*`)
+- Verify device permissions
+- Ensure privileged mode is enabled
+
+### MQTT Issues
+
+**No MQTT Traffic:**
+- Verify MQTT is enabled on node: `meshtastic --get mqtt`
+- Check `proxy_to_client_enabled: true`
+- Verify MQTT broker is accessible
+
+**Messages Not Appearing:**
+- Check MQTT broker logs
+- Verify channel configuration
+- Review proxy logs for errors
+
+## Development
+
+### Local Development
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Run locally
+python mqtt-proxy.py
+```
+
+### Building Docker Image
+
+```bash
+docker compose build
+```
+
+## Contributing
+
+Contributions welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
 
 ## License
 
-MIT
+MIT License - see LICENSE file for details
+
+## Acknowledgments
+
+- Built for the [Meshtastic](https://meshtastic.org/) project
+- Compatible with [MeshMonitor](https://github.com/Yeraze/meshmonitor)
+- Implements the mqttClientProxyMessage protocol from Meshtastic firmware
+
+## Support
+
+- **Issues**: [GitHub Issues](https://github.com/yourusername/meshtastic-mqtt-proxy/issues)
+- **Meshtastic Discord**: [Join](https://discord.gg/meshtastic)
+- **Documentation**: See [CONFIG.md](CONFIG.md) for detailed configuration
+
+## Roadmap
+
+- [ ] BLE interface support (requires custom bleak implementation)
+- [ ] Metrics and monitoring endpoints
+- [ ] Web UI for configuration
+- [ ] Multi-node support
+
+---
+
+**Status**: Production Ready ✅  
+**Version**: 1.0.0  
+**Last Updated**: 2025-12-22
