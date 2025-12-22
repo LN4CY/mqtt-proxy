@@ -252,7 +252,7 @@ def on_receive(packet, interface):
     """
     global last_packet_time
     last_packet_time = time.time()
-    return  # Early return - node uses mqttClientProxyMessage now
+    # return  # Early return - node uses mqttClientProxyMessage now
     
     try:
         if not mqtt_client:
@@ -366,17 +366,22 @@ class MQTTProxyMixin:
         fromRadio is a mesh_pb2.FromRadio protobuf object OR bytes depending on version.
         """
         try:
+            logger.info("RX Object Type: %s", type(fromRadio))
+
             # Parse the bytes into a FromRadio object for our inspection
             # Handle both bytes and already-parsed protobuf objects
             if isinstance(fromRadio, bytes):
                 # Debug logging for raw bytes
-                # logger.debug("Raw FromRadio bytes (%d): %s", len(fromRadio), fromRadio.hex())
+                logger.debug("Raw FromRadio bytes (%d): %s", len(fromRadio), fromRadio.hex())
                 decoded = mesh_pb2.FromRadio()
                 decoded.ParseFromString(fromRadio)
             else:
                 # Already a protobuf object
                 decoded = fromRadio
             
+            # DEBUG: Log every received packet type
+            logger.info("RX FromRadio: Fields=%s", decoded.ListFields())
+
             # Check for mqttClientProxyMessage (node wants to publish to MQTT)
             if decoded.HasField("mqttClientProxyMessage"):
                 mqtt_msg = decoded.mqttClientProxyMessage
@@ -389,7 +394,11 @@ class MQTTProxyMixin:
             elif decoded.packet and decoded.packet.to:
                 # This is a MeshPacket. Publish it raw.
                 # using a custom topic 'proxy.receive.raw'
+                logger.info("RX MeshPacket (not proxied): To=%s From=%s", decoded.packet.to, getattr(decoded.packet, "from"))
                 pub.sendMessage("proxy.receive.raw", packet=decoded.packet, interface=self)
+            else:
+                 logger.info("RX Other (ignored): %s", decoded)
+
         except Exception as e:
             # Expected protobuf parsing errors - log at debug level
             logger.debug("Error in MQTT proxy interception: %s", e)
