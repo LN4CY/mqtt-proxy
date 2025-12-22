@@ -23,10 +23,14 @@ services:
       - POLL_INTERVAL=${POLL_INTERVAL:-1}         # Config polling interval (default: 1 second)
     volumes:
       - ./tcp-mqtt-proxy.py:/app/tcp-mqtt-proxy.py
+      - /var/run/dbus:/var/run/dbus  # Required for BLE access
     devices:
       # Serial devices for Meshtastic nodes
       - /dev/ttyACM0:/dev/ttyACM0
       - /dev/ttyACM1:/dev/ttyACM1
       # - /dev/ttyUSB0:/dev/ttyUSB0
+    cap_add:
+      - NET_ADMIN  # Required for BLE
+      - SYS_ADMIN  # Required for BLE
     privileged: true  # Required for serial device access
     network_mode: host
