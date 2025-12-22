@@ -44,6 +44,7 @@ BLE_ADDRESS = os.environ.get("BLE_ADDRESS", "")
 TCP_TIMEOUT = int(os.environ.get("TCP_TIMEOUT", "300"))  # 5 minutes default
 CONFIG_WAIT_TIMEOUT = int(os.environ.get("CONFIG_WAIT_TIMEOUT", "60"))  # 1 minute default
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL", "1"))  # 1 second default
+MANUAL_CHANNEL_MAP = {}
 
 running = True
 iface = None
@@ -113,6 +114,15 @@ def on_mqtt_message_callback(client, userdata, message):
         # Skip stat messages (status updates)
         if "/stat/" in message.topic:
             return
+
+        # Loop protection: Ignore messages from our own node ID
+        # Topic format: msh/REGION/2/e/CHANNEL/!NODEID
+        if my_node_id:
+             # Check for !NODEID at end of topic
+             if message.topic.endswith(f"!{my_node_id}"):
+                 logger.debug("Ignoring own MQTT message (Loop protection): %s", message.topic)
+                 return
+
             
         logger.info("MQTT RX (Forwarding): Topic=%s Size=%d bytes", message.topic, len(message.payload))
         
