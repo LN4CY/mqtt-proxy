@@ -24,6 +24,7 @@ services:
     volumes:
       - ./tcp-mqtt-proxy.py:/app/tcp-mqtt-proxy.py
       - /var/run/dbus:/var/run/dbus  # Required for BLE access
+      - /var/lib/bluetooth:/var/lib/bluetooth:ro  # Required for BLE pairing data
     devices:
       # Serial devices for Meshtastic nodes
       - /dev/ttyACM0:/dev/ttyACM0
