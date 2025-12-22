@@ -27,8 +27,8 @@ A production-ready MQTT proxy for Meshtastic devices that enables bidirectional 
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/meshtastic-mqtt-proxy.git
-cd meshtastic-mqtt-proxy
+git clone https://github.com/LN4CY/mqtt-proxy.git
+cd mqtt-proxy
 ```
 
 2. Create `.env` file:
@@ -235,7 +235,7 @@ MIT License - see LICENSE file for details
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/meshtastic-mqtt-proxy/issues)
+- **Issues**: [GitHub Issues](https://github.com/LN4CY/mqtt-proxy/issues)
 - **Meshtastic Discord**: [Join](https://discord.gg/meshtastic)
 - **Documentation**: See [CONFIG.md](CONFIG.md) for detailed configuration
 
