@@ -159,6 +159,11 @@ services:
       - ENABLE_VIRTUAL_NODE=true
       - VIRTUAL_NODE_PORT=4404
       - MESHTASTIC_NODE_IP=serial-bridge  # Connects to serial-bridge by name
+      - STATUS_FILE=/data/.upgrade-status
+      - CHECK_INTERVAL=5
+      - COMPOSE_PROJECT_DIR=/compose
+      - COMPOSE_PROJECT_NAME=meshmonitor # Critical: Forces upgrader to use shared network
+    command: /data/scripts/upgrade-watchdog.sh
     # Add simple healthcheck to ensure port 4404 is open
     healthcheck:
       test: ["CMD-SHELL", "node -e 'const net = require(\"net\"); const client = new net.Socket(); client.connect(4404, \"127.0.0.1\", () => { process.exit(0); }); client.on(\"error\", () => { process.exit(1); });'"]
