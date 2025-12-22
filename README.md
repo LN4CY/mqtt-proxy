@@ -48,6 +48,21 @@ TCP_NODE_PORT=4403
 docker compose up -d
 ```
 
+### Quick Start (Pre-built Image)
+
+You can run the proxy directly without cloning the code using the pre-built image from GitHub Container Registry:
+
+```bash
+docker run -d \
+  --name mqtt-proxy \
+  --net=host \
+  --restart unless-stopped \
+  -e INTERFACE_TYPE=tcp \
+  -e TCP_NODE_HOST=192.168.1.100 \
+  -e TCP_NODE_PORT=4403 \
+  ghcr.io/ln4cy/mqtt-proxy:master
+```
+
 ## Configuration
 
 ### Interface Types
