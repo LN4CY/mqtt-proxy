@@ -44,7 +44,7 @@ BLE_ADDRESS = os.environ.get("BLE_ADDRESS", "")
 TCP_TIMEOUT = int(os.environ.get("TCP_TIMEOUT", "300"))  # 5 minutes default
 CONFIG_WAIT_TIMEOUT = int(os.environ.get("CONFIG_WAIT_TIMEOUT", "60"))  # 1 minute default
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL", "1"))  # 1 second default
-MANUAL_CHANNEL_MAP = {}
+
 
 running = True
 iface = None
@@ -290,17 +290,13 @@ def on_receive(packet, interface):
             logger.warning("Could not resolve channel name: %s", e)
 
         if chan_name is None:
-             # Try Manual Map
-             if idx in MANUAL_CHANNEL_MAP:
-                 chan_name = MANUAL_CHANNEL_MAP[idx]
+             # Fallback: Use Index "Channel_N" instead of flattening to LongFast
+             # This preserves uniqueness if name is missing.
+             if idx == 0:
+                 chan_name = "LongFast"
              else:
-                 # Fallback: Use Index "Channel_N" instead of flattening to LongFast
-                 # This preserves uniqueness if name is missing.
-                 if idx == 0:
-                     chan_name = "LongFast"
-                 else:
-                     chan_name = f"Chan_{idx}"
-                     logger.warning("Channel Name lookup failed for Index %d. Using '%s'", idx, chan_name)
+                 chan_name = f"Chan_{idx}"
+                 logger.warning("Channel Name lookup failed for Index %d. Using '%s'", idx, chan_name)
 
         # Create ServiceEnvelope
         se = mqtt_pb2.ServiceEnvelope()
