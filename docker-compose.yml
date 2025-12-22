@@ -5,9 +5,13 @@ services:
     container_name: mqtt-proxy
     restart: unless-stopped
     environment:
+      # Interface selection
+      - INTERFACE_TYPE=${INTERFACE_TYPE:-tcp}  # tcp or serial (BLE not yet supported)
+      
       # Node connection settings
       - TCP_NODE_HOST=${TCP_NODE_HOST:-localhost}
       - TCP_NODE_PORT=${TCP_NODE_PORT:-4403}
+      - SERIAL_PORT=${SERIAL_PORT:-/dev/ttyUSB0}
       
       # Logging
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
@@ -17,5 +21,11 @@ services:
       - CONFIG_WAIT_TIMEOUT=${CONFIG_WAIT_TIMEOUT:-60}  # Wait for node config (default: 1 minute)
       - POLL_INTERVAL=${POLL_INTERVAL:-1}         # Config polling interval (default: 1 second)
     volumes:
-      - ./tcp-mqtt-proxy.py:/app/tcp-mqtt-proxy.py
+      - ./mqtt-proxy.py:/app/mqtt-proxy.py
+    devices:
+      # Serial devices for Meshtastic nodes (uncomment for serial interface)
+      - /dev/ttyACM0:/dev/ttyACM0
+      - /dev/ttyACM1:/dev/ttyACM1
+      # - /dev/ttyUSB0:/dev/ttyUSB0
+    privileged: true  # Required for serial device access
     network_mode: host

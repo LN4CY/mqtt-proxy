@@ -2,8 +2,11 @@
 
 A Docker-based transparent MQTT proxy for Meshtastic nodes, enabling nodes without direct internet access to communicate via MQTT through the proxy's network connection.
 
+**Supports TCP, Serial, and BLE connections!**
+
 ## Features
 
+✅ **Multi-Interface Support** - Works with TCP, Serial (USB), and BLE connections  
 ✅ **Bidirectional MQTT Proxy** - Full Node ↔ MQTT communication  
 ✅ **All Channels Supported** - Works with any channel configuration  
 ✅ **Zero Configuration** - Automatically reads settings from node  
