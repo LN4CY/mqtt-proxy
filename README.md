@@ -17,9 +17,12 @@ A production-ready MQTT proxy for Meshtastic devices that enables bidirectional 
 
 ## Quick Start
 
+> [!NOTE]
+> The Docker setup below is designed for **Linux** systems. For Windows and macOS, see the [Platform Support](#platform-support) section.
+
 ### Prerequisites
 
-- Docker and Docker Compose
+- Docker and Docker Compose (Linux)
 - Meshtastic node (accessible via TCP or Serial)
 - MQTT broker (configured on your Meshtastic node)
 
@@ -132,19 +135,20 @@ docker compose logs -f mqtt-proxy
 docker compose down
 ```
 
-## Windows Support
+## Platform Support
 
-Running this proxy on Windows? Here's what you need to know:
+### Linux (Primary Platform)
+The Docker setup is designed for Linux and works out of the box for both TCP and Serial interfaces.
 
-### 1. TCP Interface (Recommended for Docker)
-If you are connecting to a node over TCP (WiFi), Docker Desktop for Windows works perfectly out of the box. Just use the standard `docker-compose.yml`.
+### Windows
 
-### 2. Serial Interface (USB)
-Connecting to a USB device via Docker on Windows is **not supported directly** because Docker runs in a VM (WSL2) and Windows does not pass COM ports to it by default.
+**TCP Interface:**
+Docker Desktop for Windows works perfectly for TCP connections. Use the standard `docker-compose.yml`.
 
-**Option A: Run Natively (Easiest)**
-Install Python on Windows and run the script directly. This allows direct access to COM ports (e.g., `COM3`).
+**Serial Interface (USB):**
+Docker on Windows **does not support USB passthrough directly** because Docker runs in WSL2.
 
+**Option A: Run Natively (Recommended)**
 ```powershell
 # Install dependencies
 pip install -r requirements.txt
@@ -156,10 +160,38 @@ python mqtt-proxy.py
 ```
 
 **Option B: Docker via WSL2 + usbipd (Advanced)**
-If you MUST use Docker with USB Config, you need `usbipd-win` to bridge the USB device to WSL2.
-1. Install [usbipd-win](https://github.com/dorssel/usbipd-win).
-2. Attach the device: `usbipd wsl attach --busid <BUSID>`
-3. The device will appear as `/dev/ttyACM0` inside WSL2/Docker.
+1. Install [usbipd-win](https://github.com/dorssel/usbipd-win)
+2. Attach device: `usbipd wsl attach --busid <BUSID>`
+3. Device appears as `/dev/ttyACM0` in WSL2/Docker
+
+### macOS
+
+**TCP Interface:**
+Docker Desktop for Mac works perfectly for TCP connections. Use the standard `docker-compose.yml`.
+
+**Serial Interface (USB):**
+Docker on macOS **does not support USB passthrough directly** because Docker runs in a VM.
+
+**Option A: Run Natively (Recommended)**
+```bash
+# Install dependencies
+pip3 install -r requirements.txt
+
+# Find your device (usually /dev/cu.usbmodem* or /dev/tty.usbmodem*)
+ls /dev/cu.usbmodem*
+
+# Run with environment variables
+export INTERFACE_TYPE=serial
+export SERIAL_PORT=/dev/cu.usbmodem14201  # Use your actual device path
+python3 mqtt-proxy.py
+```
+
+**Option B: Docker Desktop USB Forwarding (Experimental)**
+Docker Desktop for Mac 4.27+ supports USB device forwarding:
+1. Enable in Docker Desktop settings: **Settings → Resources → USB devices**
+2. Select your Meshtastic device
+3. Device appears as `/dev/ttyACM0` in containers
+4. Update `docker-compose.yml` devices section accordingly
 
 ## Integration with MeshMonitor
 
