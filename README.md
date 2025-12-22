@@ -1,6 +1,6 @@
 # Meshtastic MQTT Proxy
 
-A production-ready MQTT proxy for Meshtastic devices that enables bidirectional message forwarding between Meshtastic nodes and MQTT brokers. Supports multiple interface types (TCP, Serial) with a clean factory pattern architecture.
+A production-ready MQTT proxy for Meshtastic devices that enables bidirectional message forwarding between Meshtastic nodes and MQTT brokers. Supports TCP and Serial interface connections with a clean factory pattern architecture.
 
 ## Features
 
@@ -12,6 +12,8 @@ A production-ready MQTT proxy for Meshtastic devices that enables bidirectional 
 - ✅ **Production Ready** - Error handling, logging, and automatic reconnection
 - ✅ **Channel Support** - Works with all Meshtastic channels and message types
 - ✅ **MeshMonitor Compatible** - Seamless integration with MeshMonitor and other tools
+
+**Note:** BLE interface is not currently supported. Use TCP or Serial interfaces.
 
 ## Quick Start
 
@@ -224,7 +226,7 @@ MIT License - see LICENSE file for details
 
 ## Roadmap
 
-- [ ] BLE interface support (requires custom bleak implementation)
+- [ ] **BLE Interface Support** - Requires custom bleak implementation (see [meshtastic-ble-bridge](https://github.com/Yeraze/meshtastic-ble-bridge) for reference)
 - [ ] Metrics and monitoring endpoints
 - [ ] Web UI for configuration
 - [ ] Multi-node support
