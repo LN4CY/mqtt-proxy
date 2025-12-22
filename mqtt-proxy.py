@@ -138,10 +138,22 @@ def on_connection(interface, **kwargs):
         logger.warning("No localNode available")
         return
 
+    # Get hardware and firmware info from localConfig.device
+    hw_model = "unknown"
+    fw_version = "unknown"
+    
+    try:
+        if hasattr(node, 'localConfig') and node.localConfig and hasattr(node.localConfig, 'device'):
+            device = node.localConfig.device
+            if hasattr(device, 'hwModel'):
+                hw_model = device.hwModel
+            if hasattr(device, 'firmwareVersion'):
+                fw_version = device.firmwareVersion
+    except Exception as e:
+        logger.debug("Could not read device info: %s", e)
+
     logger.info("Connected to node %s (HW: %s, FW: %s)", 
-        node.nodeNum, 
-        getattr(node, 'hardwareModel', 'unknown'),
-        getattr(node, 'firmwareVersion', 'unknown')
+        node.nodeNum, hw_model, fw_version
     )
     
     # helper to get node ID string (e.g. !1234abcd) -> 1234abcd
