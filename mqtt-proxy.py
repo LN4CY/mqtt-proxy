@@ -119,8 +119,8 @@ def on_mqtt_message_callback(client, userdata, message):
         # Forward ALL MQTT messages directly to node as mqttClientProxyMessage
         # The node's firmware will handle parsing, channel mapping, and filtering
         mqtt_proxy_msg = mesh_pb2.MqttClientProxyMessage()
-        mqtt_proxy_msg.topic = msg.topic
-        mqtt_proxy_msg.data = msg.payload
+        mqtt_proxy_msg.topic = message.topic
+        mqtt_proxy_msg.data = message.payload
         mqtt_proxy_msg.retained = False  # Can be enhanced to detect retained messages
         
         to_radio = mesh_pb2.ToRadio()
@@ -189,46 +189,46 @@ def on_connection(interface, **kwargs):
         logger.warning("No MQTT configuration found on node! Please configure MQTT settings on the device.")
         return
         
-        logger.info("Starting MQTT Client...")
-        logger.info("  Server: %s:%d", mqtt_address, mqtt_port)
-        logger.info("  User: %s", mqtt_username)
-        logger.info("  Root Topic: %s", mqtt_root)
+    logger.info("Starting MQTT Client...")
+    logger.info("  Server: %s:%d", mqtt_address, mqtt_port)
+    logger.info("  User: %s", mqtt_username)
+    logger.info("  Root Topic: %s", mqtt_root)
+    
+    mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    if mqtt_username and mqtt_password:
+        mqtt_client.username_pw_set(mqtt_username, mqtt_password)
         
-        mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-        if mqtt_username and mqtt_password:
-            mqtt_client.username_pw_set(mqtt_username, mqtt_password)
-            
-        mqtt_client.on_connect = on_mqtt_connect
-        mqtt_client.on_message = on_mqtt_message_callback
-        
-        try:
-            if not mqtt_address or mqtt_address == "255.255.255.255":
-                logger.warning("Invalid MQTT address in config: %s", mqtt_address)
-                return
+    mqtt_client.on_connect = on_mqtt_connect
+    mqtt_client.on_message = on_mqtt_message_callback
+    
+    try:
+        if not mqtt_address or mqtt_address == "255.255.255.255":
+            logger.warning("Invalid MQTT address in config: %s", mqtt_address)
+            return
 
-            # LWT (Last Will and Testament) for Presence
-            # Topic: msh/US/2/stat/!NODEID
-            # We need to pre-calculate this, but my_node_id might be unknown until TCP connect?
-            # Actually, we connect TCP first (in main), getting my_node_id, THEN we parse config, THEN we start MQTT.
-            # So my_node_id should be available.
-            
-            if my_node_id:
-               topic_stat = f"{mqtt_root}/2/stat/!{my_node_id}"
-               mqtt_client.will_set(topic_stat, payload="offline", retain=True)
-            
-            mqtt_client.connect(mqtt_address, mqtt_port, 60)
-            mqtt_client.loop_start()
-            
-            if my_node_id:
-                # Publish initial online status
-                # We do this after loop_start/connect, best effort.
-                # Ideally in on_connect, but we need client context there. 
-                # Let's do it here or relying on on_connect?
-                # on_connect has the client, we can publish there if we pass the topic.
-                pass
-            
-        except Exception as e:
-            logger.error("Failed to connect to MQTT broker: %s", e)
+        # LWT (Last Will and Testament) for Presence
+        # Topic: msh/US/2/stat/!NODEID
+        # We need to pre-calculate this, but my_node_id might be unknown until TCP connect?
+        # Actually, we connect TCP first (in main), getting my_node_id, THEN we parse config, THEN we start MQTT.
+        # So my_node_id should be available.
+        
+        if my_node_id:
+           topic_stat = f"{mqtt_root}/2/stat/!{my_node_id}"
+           mqtt_client.will_set(topic_stat, payload="offline", retain=True)
+        
+        mqtt_client.connect(mqtt_address, mqtt_port, 60)
+        mqtt_client.loop_start()
+        
+        if my_node_id:
+            # Publish initial online status
+            # We do this after loop_start/connect, best effort.
+            # Ideally in on_connect, but we need client context there. 
+            # Let's do it here or relying on on_connect?
+            # on_connect has the client, we can publish there if we pass the topic.
+            pass
+        
+    except Exception as e:
+        logger.error("Failed to connect to MQTT broker: %s", e)
 
 def on_connection_lost(interface, **kwargs):
     """Called when the Meshtastic connection occurs"""
