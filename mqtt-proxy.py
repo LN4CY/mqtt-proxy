@@ -11,7 +11,7 @@ import paho.mqtt.client as mqtt
 import meshtastic
 from meshtastic.tcp_interface import TCPInterface
 from meshtastic.serial_interface import SerialInterface
-from meshtastic.ble_interface import BLEInterface
+# from meshtastic.ble_interface import BLEInterface  # BLE requires custom bleak implementation for Docker compatibility
 from meshtastic import mesh_pb2, mqtt_pb2
 # from google.protobuf.json_format import ParseDict # Unused
 from google.protobuf import json_format
@@ -403,9 +403,11 @@ class RawSerialInterface(MQTTProxyMixin, SerialInterface):
     pass
 
 
-class RawBLEInterface(MQTTProxyMixin, BLEInterface):
-    """BLE interface with MQTT proxy support"""
-    pass
+# BLE interface commented out - requires custom bleak implementation for Docker compatibility
+# See meshtastic-ble-bridge for reference implementation using bleak library
+# class RawBLEInterface(MQTTProxyMixin, BLEInterface):
+#     """BLE interface with MQTT proxy support"""
+#     pass
 
 
 # ---------------------------------------------------------------------

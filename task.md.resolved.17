@@ -20,43 +20,27 @@
 ## ✅ Phase 2: Multi-Interface Support (Complete)
 
 ### Refactoring
-- [x] Extract common `_handleFromRadio()` logic into MQTTProxyMixin
+- [x] Extract common [_handleFromRadio()](file:///C:/Users/dremb/.gemini/antigravity/brain/cd00e979-2d9a-4abd-80d8-38d6d36e6d90/tcp-mqtt-proxy.py#352-385) logic into MQTTProxyMixin
 - [x] Create interface factory pattern
 - [x] Add `INTERFACE_TYPE` environment variable
 - [x] Update main() to use factory
 - [x] Update docker-compose.yml with new variables
 
-### TCP Interface Testing
-- [x] Test TCP interface with multi-interface code
-- [x] Verify MQTT traffic flows correctly
-- [x] Confirm messages reach MeshMonitor
-- [x] Fix _sendToRadioImpl method
-- [x] Reduce logging verbosity
-
-### Serial Interface Testing
-- [x] Create `RawSerialInterface` class
+### Serial Support
+- [x] Create [RawSerialInterface](file:///C:/Users/dremb/.gemini/antigravity/brain/cd00e979-2d9a-4abd-80d8-38d6d36e6d90/tcp-mqtt-proxy.py#392-395) class
 - [x] Add `SERIAL_PORT` configuration
-- [x] Add device mapping to docker-compose.yml
-- [x] Test with /dev/ttyACM1 (gateway node)
-- [x] Fix permissions with privileged mode
-- [x] Verify MQTT traffic flows via serial
-- [x] Update documentation
+- [ ] Test with USB-connected node
+- [ ] Update documentation
 
-### BLE Interface Testing
-- [x] Create `RawBLEInterface` class
+### BLE Support
+- [x] Create [RawBLEInterface](file:///C:/Users/dremb/.gemini/antigravity/brain/cd00e979-2d9a-4abd-80d8-38d6d36e6d90/tcp-mqtt-proxy.py#397-400) class
 - [x] Add `BLE_ADDRESS` configuration
-- [x] Scan for BLE devices
-- [x] Test with BLE device (L4BS_a80a)
-- [x] Verify MQTT traffic flows via BLE
-- [x] Update documentation
+- [ ] Handle Docker BLE requirements (documentation)
+- [ ] Test with BLE-connected node
+- [ ] Update documentation
 
 ### Final Integration
-- [x] Test all three interface types successfully
-- [x] Verify connection stability for each interface
-- [x] Commit all changes to feature branch
-- [ ] Update README with all interface examples
+- [ ] Test all three interface types
+- [ ] Update README with interface examples
+- [ ] Update CONFIG.md with new variables
 - [ ] Merge feature branch to master
-
-## 🎉 Multi-Interface MQTT Proxy Complete!
-
-All three interfaces (TCP, Serial, BLE) tested and working successfully!

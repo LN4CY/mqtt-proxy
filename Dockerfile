@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY tcp-mqtt-proxy.py .
-RUN chmod +x tcp-mqtt-proxy.py
+COPY mqtt-proxy.py .
+RUN chmod +x mqtt-proxy.py
 
-CMD ["python3", "-u", "tcp-mqtt-proxy.py"]
+CMD ["python3", "-u", "mqtt-proxy.py"]
