@@ -148,14 +148,18 @@ Docker Desktop for Windows works perfectly for TCP connections. Use the standard
 **Serial Interface (USB):**
 Docker on Windows **does not support USB passthrough directly** because Docker runs in WSL2.
 
-**Option A: Run Natively (Recommended)**
+**Option A: Run Natively with venv (Recommended)**
 ```powershell
+# Create and activate virtual environment
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+
 # Install dependencies
 pip install -r requirements.txt
 
 # Run with environment variables
 $env:INTERFACE_TYPE="serial"
-$env:SERIAL_PORT="COM3"
+$env:SERIAL_PORT="COM3"  # Check Device Manager for your actual COM port
 python mqtt-proxy.py
 ```
 
@@ -172,10 +176,14 @@ Docker Desktop for Mac works perfectly for TCP connections. Use the standard `do
 **Serial Interface (USB):**
 Docker on macOS **does not support USB passthrough directly** because Docker runs in a VM.
 
-**Option A: Run Natively (Recommended)**
+**Option A: Run Natively with venv (Recommended)**
 ```bash
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
 # Install dependencies
-pip3 install -r requirements.txt
+pip install -r requirements.txt
 
 # Find your device (usually /dev/cu.usbmodem* or /dev/tty.usbmodem*)
 ls /dev/cu.usbmodem*
@@ -183,7 +191,7 @@ ls /dev/cu.usbmodem*
 # Run with environment variables
 export INTERFACE_TYPE=serial
 export SERIAL_PORT=/dev/cu.usbmodem14201  # Use your actual device path
-python3 mqtt-proxy.py
+python mqtt-proxy.py
 ```
 
 **Option B: Docker Desktop USB Forwarding (Experimental)**
