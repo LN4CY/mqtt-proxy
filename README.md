@@ -301,7 +301,15 @@ Contributions welcome! Please:
 
 ## License
 
-MIT License - see LICENSE file for details
+This project source code is released under the **MIT License**.
+
+### Dependency Licenses
+Users should be aware that the Docker image built from this repository bundles several third-party dependencies, including:
+
+*   **[meshtastic-python](https://github.com/meshtastic/python)**: Licensed under **GPLv3**.
+*   **[paho-mqtt](https://github.com/eclipse/paho.mqtt.python)**: Licensed under **EPL-2.0 / BSD**.
+
+**Note:** Due to the inclusion of `meshtastic` (GPLv3), compiled binaries or Docker images distributed from this project are effectively subject to the terms of the GPLv3.
 
 ## Acknowledgments
 
