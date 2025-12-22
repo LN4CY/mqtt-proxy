@@ -138,33 +138,8 @@ def on_connection(interface, **kwargs):
         logger.warning("No localNode available")
         return
 
-    # Get hardware and firmware info - try multiple attribute paths
-    hw_model = "unknown"
-    fw_version = "unknown"
-    
-    try:
-        # Try localConfig.device first (protobuf structure)
-        if hasattr(node, 'localConfig') and node.localConfig and hasattr(node.localConfig, 'device'):
-            device = node.localConfig.device
-            if hasattr(device, 'hwModel'):
-                hw_model = str(device.hwModel) if device.hwModel else "unknown"
-            if hasattr(device, 'firmwareVersion'):
-                fw_version = device.firmwareVersion if device.firmwareVersion else "unknown"
-        
-        # Fallback: try direct attributes
-        if hw_model == "unknown" and hasattr(node, 'hwModel'):
-            hw_model = str(node.hwModel)
-        if fw_version == "unknown" and hasattr(node, 'swVersion'):
-            fw_version = node.swVersion
-            
-        # Debug: log what we found
-        logger.debug("Node attributes - hwModel: %s, firmwareVersion: %s", hw_model, fw_version)
-    except Exception as e:
-        logger.debug("Could not read device info: %s", e)
-
-    logger.info("Connected to node %s (HW: %s, FW: %s)", 
-        node.nodeNum, hw_model, fw_version
-    )
+    # Log connection - HW/FW info may not be available yet
+    logger.info("Connected to node %s", node.nodeNum)
     
     # helper to get node ID string (e.g. !1234abcd) -> 1234abcd
     try:
