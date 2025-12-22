@@ -132,6 +132,77 @@ docker compose logs -f mqtt-proxy
 docker compose down
 ```
 
+## Integration with MeshMonitor
+
+For a seamless integration with [MeshMonitor](https://github.com/Yeraze/meshmonitor), add the proxy as a service in your main `docker-compose.yml`.
+
+### Best Practices (Verified)
+
+1. **Shared Network:** Use a custom bridge network (`meshtastic_net`) for all services to enable service-name discovery.
+2. **Startup Order:** Use a healthcheck on `meshmonitor` so `mqtt-proxy` only starts when the virtual node is ready.
+3. **Environment:** Use `TCP_NODE_HOST=meshmonitor` to avoid hardcoded IPs.
+
+### Example Configuration
+
+```yaml
+version: '3'
+services:
+  # The main application
+  meshmonitor:
+    image: ghcr.io/yeraze/meshmonitor:latest
+    container_name: meshmonitor
+    restart: unless-stopped
+    ports:
+      - "8181:3001"
+      - "4404:4404"
+    environment:
+      - ENABLE_VIRTUAL_NODE=true
+      - VIRTUAL_NODE_PORT=4404
+      - MESHTASTIC_NODE_IP=serial-bridge  # Connects to serial-bridge by name
+    # Add simple healthcheck to ensure port 4404 is open
+    healthcheck:
+      test: ["CMD-SHELL", "node -e 'const net = require(\"net\"); const client = new net.Socket(); client.connect(4404, \"127.0.0.1\", () => { process.exit(0); }); client.on(\"error\", () => { process.exit(1); });'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    depends_on:
+      - serial-bridge
+    networks:
+      - meshtastic_net
+
+  # The generic serial bridge
+  serial-bridge:
+    image: ghcr.io/yeraze/meshtastic-serial-bridge:latest
+    container_name: meshtastic-serial-bridge
+    devices:
+      - /dev/ttyACM0:/dev/ttyACM0
+    environment:
+      - SERIAL_DEVICE=/dev/ttyACM0
+      - TCP_PORT=4403
+    networks:
+      - meshtastic_net
+
+  # This proxy service (The Glue)
+  mqtt-proxy:
+    image: ghcr.io/ln4cy/mqtt-proxy:master
+    container_name: mqtt-proxy
+    restart: unless-stopped
+    environment:
+      - INTERFACE_TYPE=tcp
+      - TCP_NODE_HOST=meshmonitor # Connects to meshmonitor by name
+      - TCP_NODE_PORT=4404
+    depends_on:
+      meshmonitor:
+        condition: service_healthy # Wait for port 4404 to be listening
+    networks:
+      - meshtastic_net
+
+networks:
+  meshtastic_net:
+    driver: bridge
+```
+
 ## Architecture
 
 The proxy uses a factory pattern to support multiple interface types:
