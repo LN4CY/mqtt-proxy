@@ -366,7 +366,7 @@ class MQTTProxyMixin:
         fromRadio is a mesh_pb2.FromRadio protobuf object OR bytes depending on version.
         """
         try:
-            logger.info("RX Object Type: %s", type(fromRadio))
+            logger.debug("RX Object Type: %s", type(fromRadio))
 
             # Parse the bytes into a FromRadio object for our inspection
             # Handle both bytes and already-parsed protobuf objects
@@ -380,7 +380,7 @@ class MQTTProxyMixin:
                 decoded = fromRadio
             
             # DEBUG: Log every received packet type
-            logger.info("RX FromRadio: Fields=%s", decoded.ListFields())
+            logger.debug("RX FromRadio: Fields=%s", decoded.ListFields())
 
             # Check for mqttClientProxyMessage (node wants to publish to MQTT)
             if decoded.HasField("mqttClientProxyMessage"):
@@ -394,10 +394,10 @@ class MQTTProxyMixin:
             elif decoded.packet and decoded.packet.to:
                 # This is a MeshPacket. Publish it raw.
                 # using a custom topic 'proxy.receive.raw'
-                logger.info("RX MeshPacket (not proxied): To=%s From=%s", decoded.packet.to, getattr(decoded.packet, "from"))
+                logger.debug("RX MeshPacket (not proxied): To=%s From=%s", decoded.packet.to, getattr(decoded.packet, "from"))
                 pub.sendMessage("proxy.receive.raw", packet=decoded.packet, interface=self)
             else:
-                 logger.info("RX Other (ignored): %s", decoded)
+                 logger.debug("RX Other (ignored): %s", decoded)
 
         except Exception as e:
             # Expected protobuf parsing errors - log at debug level
