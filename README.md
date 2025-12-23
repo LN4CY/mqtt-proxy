@@ -409,4 +409,4 @@ Users should be aware that the Docker image built from this repository bundles s
 **Last Updated**: 2025-12-22
 
 
-This application was develped with Antigravity and the help of Gemini
+This application was developed with Antigravity and the help of Gemini
