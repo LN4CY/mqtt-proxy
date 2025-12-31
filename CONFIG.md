@@ -94,18 +94,22 @@ BLE support requires custom implementation using the `bleak` library. See the [m
 | `POLL_INTERVAL` | integer | `1` | Config polling interval (seconds) |
 
 ### Health Check Settings
-
+ 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `HEALTH_CHECK_ACTIVITY_TIMEOUT` | integer | `300` | Max time without MQTT activity before health check fails (seconds) |
-| `HEALTH_CHECK_PROBE_INTERVAL` | integer | `150` | Time without activity before sending active probe (seconds, default is 50% of timeout) |
+| `HEALTH_CHECK_ACTIVITY_TIMEOUT` | integer | `300` | **Silence Threshold**: Time without Radio activity before probing starts (seconds). Recommended `60`. |
 | `HEALTH_CHECK_STATUS_INTERVAL` | integer | `60` | How often to log status information (seconds) |
 | `MQTT_RECONNECT_DELAY` | integer | `5` | Delay before attempting MQTT reconnection (seconds) |
-
-> [!NOTE]
-> The health check monitors both MQTT connection state and message activity. If the proxy stops sending/receiving messages for longer than `HEALTH_CHECK_ACTIVITY_TIMEOUT`, Docker will automatically restart the container.
+ 
+> [!IMPORTANT]
+> **New "Probe & Kill" Logic:**
+> 1. **Silence Watchdog**: If no data is received from the Radio for `HEALTH_CHECK_ACTIVITY_TIMEOUT` (default 300s, recommended 60s):
+>    - The proxy enters **Probe Mode** and sends a `sendPosition` command.
+>    - If no response is received within **30 seconds** of the probe, the proxy will **exit immediately** (`sys.exit(1)`), triggering a Docker restart.
 >
-> If the network is idle for `HEALTH_CHECK_PROBE_INTERVAL`, the proxy will send a "mqtt-health" text message to the node to verify connectivity.
+> 2. **Connection Lost Watchdog**:
+>    - If the Meshtastic library reports a "Connection Lost" event (e.g., DNS resolution failure `[Errno -2]`), the proxy starts a 60-second timer.
+>    - If the connection is not re-established within that 60 seconds, the proxy will **exit immediately** to force a restart.
 
 ## Meshtastic Node Configuration
 
