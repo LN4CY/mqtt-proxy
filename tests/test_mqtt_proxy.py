@@ -166,35 +166,22 @@ class TestMQTTProxy:
         # Verify it attempts to close (which triggers restart loop in main)
         mock_iface.close.assert_called_once()
 
-    @patch('socket.socket')
-    def test_create_interface(self, mock_socket):
+    def test_create_interface(self):
         """Test interface factory"""
-        # Test TCP (default in mock/env)
-        mqtt_proxy.INTERFACE_TYPE = "tcp"
-        try:
+        # Patch RawTCPInterface class in the module to avoid instantiation logic (threads, sockets)
+        with patch.object(mqtt_proxy, 'RawTCPInterface') as mock_tcp_cls:
+            mqtt_proxy.INTERFACE_TYPE = "tcp"
             iface = mqtt_proxy.create_interface()
-            assert isinstance(iface, mqtt_proxy.TCPInterface)
-        except Exception as e:
-            pytest.fail(f"create_interface raised exception: {e}")
+            # Verify it returns the instance created by our mock class
+            assert iface == mock_tcp_cls.return_value
+            mock_tcp_cls.assert_called_once()
 
-        # Check serial
-        with patch('meshtastic.serial_interface.SerialInterface') as mock_serial:
+        # Check serial - patch the class in the module!
+        with patch.object(mqtt_proxy, 'RawSerialInterface') as mock_serial_cls:
             mqtt_proxy.INTERFACE_TYPE = "serial"
-            mqtt_proxy.create_interface()
-            mock_serial.assert_called_with(mqtt_proxy.SERIAL_PORT)
-
-        # Test invalid
-        mqtt_proxy.INTERFACE_TYPE = "unknown"
-        with pytest.raises(ValueError):
-            mqtt_proxy.create_interface()
-        # Check params (based on defaults in module)
-        # TCPInterface(host, portNumber=...)
-        # We can't easily check args of instantiated object unless we mock the class init
-        
-        with patch('meshtastic.serial_interface.SerialInterface') as mock_serial:
-            mqtt_proxy.INTERFACE_TYPE = "serial"
-            mqtt_proxy.create_interface()
-            mock_serial.assert_called_with(mqtt_proxy.SERIAL_PORT)
+            iface = mqtt_proxy.create_interface()
+            assert iface == mock_serial_cls.return_value
+            mock_serial_cls.assert_called_with(mqtt_proxy.SERIAL_PORT)
 
         # Test invalid
         mqtt_proxy.INTERFACE_TYPE = "unknown"
@@ -278,20 +265,14 @@ class TestMQTTProxy:
         mock_iface.localNode = mock_node
         mqtt_proxy.iface = mock_iface
         
-        # Create a mock packet
-        packet = MagicMock()
-        # Ensure it has SerializeToString
-        # We assign it as an attribute that is also a mock
-        packet.SerializeToString = MagicMock(return_value=b"mock_protobuf")
-        
-        # We need to make sure the hasattr check works on the instance
-        # MagicMock(spec=...) might be better but let's try this
-        # If the code checks type(packet), we might see a warning but it shouldn't fail unless it returns.
-        # Code: if not hasattr(...): return
-        
+        # Create a REAL packet to satisfy Protobuf CopyFrom type check
+        from meshtastic import mesh_pb2
+        packet = mesh_pb2.MeshPacket()
         packet.channel = 0
-        setattr(packet, "from", 123456789) 
+        setattr(packet, "from", 123456789)
         packet.to = 0xFFFFFFFF
+        packet.decoded.portnum = 1
+        packet.decoded.payload = b"test"
         
         # Verify call
         mqtt_proxy.on_receive(packet, mock_iface)
