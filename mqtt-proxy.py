@@ -67,6 +67,7 @@ last_mqtt_activity = 0  # Activity FROM MQTT Broker (RX)
 last_radio_activity = 0 # Activity FROM Radio Node (RX from Radio, to be TX to MQTT)
 connection_lost_time = 0 # Timestamp when connection was reported LOST
 mqtt_tx_count = 0
+mqtt_tx_failures = 0 # Track consecutive TX failures
 mqtt_rx_count = 0
 last_status_log_time = 0
 last_probe_time = 0
@@ -153,8 +154,7 @@ def on_mqtt_message_callback(client, userdata, message):
              if message.topic.endswith(f"!{my_node_id}"):
                  logger.debug("Ignoring own MQTT message (Loop protection): %s", message.topic)
                  return
-
-            
+             
         # Update activity tracking
         last_mqtt_activity = time.time()
         mqtt_rx_count += 1
@@ -391,11 +391,13 @@ def on_receive(packet, interface):
         result = mqtt_client.publish(topic, payload, retain=should_retain)
         if result.rc == mqtt.MQTT_ERR_SUCCESS:
              # Update activity tracking for health check
-             global last_radio_activity, mqtt_tx_count
+             global last_radio_activity, mqtt_tx_count, mqtt_tx_failures
              last_radio_activity = time.time()
              mqtt_tx_count += 1
+             mqtt_tx_failures = 0
         else:
              logger.warning("MQTT publish failed: rc=%s", result.rc)
+             mqtt_tx_failures += 1
 
     except Exception as e:
         logger.error("Error processing packet for MQTT: %s", e)
@@ -416,7 +418,7 @@ class MQTTProxyMixin:
         """
         try:
             # Update generic radio activity timestamp for ANY received data
-            global last_radio_activity
+            global last_radio_activity, mqtt_tx_failures
             last_radio_activity = time.time()
 
             logger.debug("RX Object Type: %s", type(fromRadio))
@@ -445,8 +447,10 @@ class MQTTProxyMixin:
                     result = mqtt_client.publish(mqtt_msg.topic, mqtt_msg.data, retain=mqtt_msg.retained)
                     if result.rc == mqtt.MQTT_ERR_SUCCESS:
                         mqtt_tx_count += 1
+                        mqtt_tx_failures = 0
                     else:
                         logger.warning("MQTT publish failed: rc=%s", result.rc)
+                        mqtt_tx_failures += 1
             
             # Also handle regular mesh packets for backward compatibility
             elif decoded.packet and decoded.packet.to:
@@ -483,7 +487,7 @@ class RawSerialInterface(MQTTProxyMixin, SerialInterface):
 
 
 # BLE interface commented out - requires custom bleak implementation for Docker compatibility
-# See meshtastic-ble-bridge for reference implementation using bleak library
+# See meshtastic-ble-bridge for reference implementation using bleak implementation
 # class RawBLEInterface(MQTTProxyMixin, BLEInterface):
 #     """BLE interface with MQTT proxy support"""
 #     pass
@@ -570,6 +574,8 @@ def main():
                                 f"{int(time_since_radio)}s" if time_since_radio >= 0 else "never")
                      logger.info("  MQTT Activity:  %s ago (RX)", 
                                 f"{int(time_since_mqtt)}s" if time_since_mqtt >= 0 else "never")
+                     logger.info("  MQTT TX Failures: %d", mqtt_tx_failures)
+
                      last_status_log_time = current_time
                  
                  # Health check logic
@@ -625,6 +631,11 @@ def main():
                                       iface.sendPosition()
                              except Exception as e:
                                  logger.warning("Failed to send active probe: %s", e)
+                 # Check 4: MQTT Publish Failures
+                 if mqtt_tx_failures > 5:
+                     health_ok = False
+                     health_reasons.append(f"Recurring MQTT Publish Failures ({mqtt_tx_failures})")
+
                  
                  # Update heartbeat file
                  if current_time - last_heartbeat > 10:
