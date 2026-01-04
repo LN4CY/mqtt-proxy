@@ -98,6 +98,16 @@ SERIAL_PORT=/dev/ttyACM0
 
 See [CONFIG.md](CONFIG.md) for detailed configuration options.
 
+## Health Monitoring & Recovery
+
+The proxy implements a robust health monitoring system to ensure reliable operation:
+
+- **Connection Watchdog**: Automatically restarts if the Meshtastic connection is reported lost and doesn't recover within 60 seconds.
+- **Radio Activity Probe**: Actively probes the radio if silent for 5 minutes. If no response receives, restarts the container.
+- **MQTT Publish Watchdog**: Monitors MQTT publish success. If **5 consecutive publish attempts fail** (e.g., broker unavailable, auth error), the proxy forces a restart to attempt a clean reconnection.
+
+This self-healing behavior ensures the proxy recovers automatically from network interruptions without manual intervention.
+
 ## Usage
 
 ### TCP Interface

@@ -291,3 +291,72 @@ class TestMQTTProxy:
         # retain should be False by default for generic packets
         # assert kwargs.get('retain') == False # retain might not be in kwargs if positional
 
+
+    @patch('paho.mqtt.client.Client')
+    def test_publish_failure_counting(self, mock_client_cls):
+        """Test that publish failures increment the failure counter and success resets it"""
+        # Setup global mqtt client
+        mqtt_proxy.mqtt_client = mock_client_cls.return_value
+        
+        # 1. Test Failure Increment
+        mqtt_proxy.mqtt_client.publish.return_value.rc = 1 # Error
+        mqtt_proxy.mqtt_tx_failures = 0 # Reset start
+        
+        # We need a dummy packet
+        from meshtastic import mesh_pb2
+        packet = mesh_pb2.MeshPacket()
+        packet.channel = 0
+        setattr(packet, "from", 123)
+        packet.to = 456
+        
+        # Setup mocks for on_receive
+        mock_iface = MagicMock()
+        mock_iface.localNode.channels = []
+        
+        # Trigger failure
+        mqtt_proxy.on_receive(packet, mock_iface)
+        
+        assert mqtt_proxy.mqtt_tx_failures == 1
+        
+        # Trigger another failure
+        mqtt_proxy.on_receive(packet, mock_iface)
+        assert mqtt_proxy.mqtt_tx_failures == 2
+        
+        # 2. Test Success Reset
+        mqtt_proxy.mqtt_client.publish.return_value.rc = 0 # Success
+        mqtt_proxy.on_receive(packet, mock_iface)
+        assert mqtt_proxy.mqtt_tx_failures == 0
+
+    def test_proxy_mixin_failure_counting(self):
+        """Test failure counting in the Mixin (FromRadio path)"""
+        # Mock global mqtt_client
+        mock_client = MagicMock()
+        mqtt_proxy.mqtt_client = mock_client
+        
+        # Create interface with Mixin
+        class TestInterface(mqtt_proxy.MQTTProxyMixin):
+             def _handleFromRadio(self, fromRadio):
+                 try: super()._handleFromRadio(fromRadio) 
+                 except: pass # Ignore super call failure for test
+        
+        interface = TestInterface()
+        
+        # Prepare FromRadio with mqttClientProxyMessage
+        from meshtastic import mesh_pb2
+        from_radio = mesh_pb2.FromRadio()
+        from_radio.mqttClientProxyMessage.topic = "test"
+        from_radio.mqttClientProxyMessage.data = b"data"
+        
+        # 1. Test Failure
+        mock_client.publish.return_value.rc = 1
+        mqtt_proxy.mqtt_tx_failures = 0
+        
+        interface._handleFromRadio(from_radio)
+        assert mqtt_proxy.mqtt_tx_failures == 1
+        
+        # 2. Test Success
+        mock_client.publish.return_value.rc = 0
+        interface._handleFromRadio(from_radio)
+        assert mqtt_proxy.mqtt_tx_failures == 0
+
+
