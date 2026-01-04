@@ -575,6 +575,7 @@ def main():
                      logger.info("  MQTT Activity:  %s ago (RX)", 
                                 f"{int(time_since_mqtt)}s" if time_since_mqtt >= 0 else "never")
                      logger.info("  MQTT TX Failures: %d", mqtt_tx_failures)
+
                      last_status_log_time = current_time
                  
                  # Health check logic
@@ -630,11 +631,11 @@ def main():
                                       iface.sendPosition()
                              except Exception as e:
                                  logger.warning("Failed to send active probe: %s", e)
-
                  # Check 4: MQTT Publish Failures
                  if mqtt_tx_failures > 5:
                      health_ok = False
                      health_reasons.append(f"Recurring MQTT Publish Failures ({mqtt_tx_failures})")
+
                  
                  # Update heartbeat file
                  if current_time - last_heartbeat > 10:
