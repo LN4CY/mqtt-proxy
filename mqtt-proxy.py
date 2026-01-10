@@ -123,7 +123,7 @@ def on_mqtt_connect(client, userdata, flags, rc, props=None):
         mqtt_connected = False
         logger.error("MQTT Connect failed: %s", rc)
 
-def on_mqtt_disconnect(client, userdata, rc, props=None):
+def on_mqtt_disconnect(client, userdata, flags, rc, props=None):
     """Called when MQTT client disconnects"""
     global mqtt_connected
     mqtt_connected = False

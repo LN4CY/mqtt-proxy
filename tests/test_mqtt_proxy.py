@@ -193,12 +193,12 @@ class TestMQTTProxy:
         mqtt_proxy.mqtt_connected = True
         
         # Graceful
-        mqtt_proxy.on_mqtt_disconnect(None, None, 0)
+        mqtt_proxy.on_mqtt_disconnect(None, None, None, 0)
         assert mqtt_proxy.mqtt_connected == False
         
         # Unexpected
         with patch.object(mqtt_proxy.logger, 'warning') as mock_warn:
-            mqtt_proxy.on_mqtt_disconnect(None, None, 1)
+            mqtt_proxy.on_mqtt_disconnect(None, None, None, 1)
             assert mqtt_proxy.mqtt_connected == False
             mock_warn.assert_called()
 
