@@ -415,8 +415,8 @@ Users should be aware that the Docker image built from this repository bundles s
 ---
 
 **Status**: Production Ready ✅  
-**Version**: 1.0.0  
-**Last Updated**: 2025-12-22
+**Version**: 1.0.1  
+**Last Updated**: 2026-01-10
 
 
 This application was developed with Antigravity and the help of Gemini
