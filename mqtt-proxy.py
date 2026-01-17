@@ -114,10 +114,10 @@ def on_mqtt_connect(client, userdata, flags, rc, props=None):
         topic_stat = f"{root_topic}/2/stat/!{my_node_id}"
         client.publish(topic_stat,payload="online", retain=True)
         
-        # 1. Subscribe to Local Node Channels ONLY
-        # Mimics iOS app behavior to avoid over-subscription/flooding
         # 1. Subscribe to ALL Encrypted Traffic
-        # Matches iOS app to allow forwarding for all channels
+        # Mimics iOS app behavior:
+        # - Subscribes to msh/2/e/#
+        # - Filters out stat and json overhead by exclusively listening to 'e' (encrypted) topic
         topic_enc = f"{root_topic}/2/e/#"
         logger.info("Subscribing to Encrypted Wildcard: %s", topic_enc)
         client.subscribe(topic_enc)
