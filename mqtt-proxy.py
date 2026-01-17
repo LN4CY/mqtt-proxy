@@ -60,7 +60,6 @@ mqtt_client = None
 current_mqtt_cfg = None
 # To store the node ID for topic construction
 my_node_id = None
-current_channels = None
 
 # Health monitoring state
 mqtt_connected = False
@@ -100,7 +99,20 @@ signal.signal(signal.SIGTERM, handle_sigint)
 # ---------------------------------------------------------------------
 # MQTT Callbacks
 # ---------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# MQTT Callbacks
+# ---------------------------------------------------------------------
 def on_mqtt_connect(client, userdata, flags, rc, props=None):
+    """
+    Callback when the MQTT client connects.
+    
+    Args:
+        client: The MQTT client instance.
+        userdata: The private user data as set in Client() or user_data_set().
+        flags: Response flags sent by the broker.
+        rc: The connection result code.
+        props: MQTT v5 properties (optional).
+    """
     global mqtt_connected, last_mqtt_activity
     logger.info("MQTT Connected with result code: %s", rc)
     if rc == 0:
@@ -127,7 +139,16 @@ def on_mqtt_connect(client, userdata, flags, rc, props=None):
         logger.error("MQTT Connect failed: %s", rc)
 
 def on_mqtt_disconnect(client, userdata, flags, rc, props=None):
-    """Called when MQTT client disconnects"""
+    """
+    Callback when the MQTT client disconnects.
+    
+    Args:
+        client: The MQTT client instance.
+        userdata: The private user data.
+        flags: Disconnect flags.
+        rc: The disconnection result code (0 = graceful).
+        props: MQTT v5 properties (optional).
+    """
     global mqtt_connected
     mqtt_connected = False
     if rc != 0:
@@ -137,8 +158,13 @@ def on_mqtt_disconnect(client, userdata, flags, rc, props=None):
 
 def on_mqtt_message_callback(client, userdata, message):
     """
-    Called when a message is received from the MQTT broker.
-    We need to send this packet to the radio via the Interface.
+    Callback when a message is received from the MQTT broker.
+    Forwards the message to the Meshtastic radio via the Interface.
+    
+    Args:
+        client: The MQTT client instance.
+        userdata: The private user data.
+        message: The received MQTTMessage object (contains topic, payload, qos, retain).
     """
     global last_mqtt_activity, mqtt_rx_count
     try:
@@ -187,7 +213,14 @@ def on_mqtt_message_callback(client, userdata, message):
 # Meshtastic Callbacks
 # ---------------------------------------------------------------------
 def on_connection(interface, **kwargs):
-    """Called when the TCP node connection is established"""
+    """
+    Callback when the TCP node connection is established.
+    Responsible for initializing the MQTT client and setting up SSL/TLS.
+    
+    Args:
+        interface: The Meshtastic interface instance.
+        kwargs: Additional arguments from the event.
+    """
     global mqtt_client, current_mqtt_cfg, my_node_id, last_radio_activity, connection_lost_time
     
     node = interface.localNode
@@ -213,11 +246,6 @@ def on_connection(interface, **kwargs):
     except Exception as e:
         logger.error("Error getting node ID: %s", e)
         my_node_id = "unknown"
-
-    # Log available channels for debugging
-    
-    # MQTT configuration
-
 
     # MQTT configuration
     if node.moduleConfig and node.moduleConfig.mqtt:
@@ -311,7 +339,14 @@ def on_connection(interface, **kwargs):
         logger.error("Failed to connect to MQTT broker: %s", e)
 
 def on_connection_lost(interface, **kwargs):
-    """Called when the Meshtastic connection is reported lost"""
+    """
+    Callback when the Meshtastic connection is reported lost.
+    Sets the connection lost timestamp to trigger the watchdog.
+    
+    Args:
+        interface: The Meshtastic interface instance.
+        kwargs: Additional arguments.
+    """
     global connection_lost_time
     logger.warning("Meshtastic connection reported LOST!")
     connection_lost_time = time.time()
@@ -339,8 +374,11 @@ class MQTTProxyMixin:
     """
     def _handleFromRadio(self, fromRadio):
         """
-        Override internal library method to capture raw protobufs.
-        fromRadio is a mesh_pb2.FromRadio protobuf object OR bytes depending on version.
+        Intersects mqttClientProxyMessage from the node and publishes to MQTT.
+        
+        Args:
+            fromRadio: A mesh_pb2.FromRadio protobuf object OR bytes.
+                       Can contain a MeshPacket or a mqttClientProxyMessage.
         """
         try:
             # Update generic radio activity timestamp for ANY received data
@@ -425,7 +463,12 @@ class RawSerialInterface(MQTTProxyMixin, SerialInterface):
 def create_interface():
     """
     Factory function to create the appropriate interface based on INTERFACE_TYPE.
-    Returns the configured interface instance.
+    
+    Returns:
+        The configured interface instance (TCPInterface or SerialInterface).
+    
+    Raises:
+        ValueError: If an unknown INTERFACE_TYPE is specified.
     """
     interface_type = INTERFACE_TYPE
     
@@ -447,6 +490,11 @@ def create_interface():
     else:
         raise ValueError(f"Unknown interface type: {interface_type}. Must be 'tcp' or 'serial' (BLE not yet supported)")
 
+# ---------------------------------------------------------------------
+# Main entry point for the application.
+# Sets up event subscriptions and manages the main application loop,
+# including interface creation, connection monitoring, and health checks.
+# ---------------------------------------------------------------------
 def main():
     logger.info("MQTT Proxy starting (interface: %s)...", INTERFACE_TYPE.upper())
     
