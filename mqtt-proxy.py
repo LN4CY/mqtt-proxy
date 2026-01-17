@@ -110,11 +110,11 @@ def on_mqtt_connect(client, userdata, flags, rc, props=None):
         root_topic = current_mqtt_cfg.root if current_mqtt_cfg.root else "msh"
         # region = "US" # Removed to avoid duplication if root_topic already has region
         
-        # 0. Publish Online Presence
+        # Publish Online Presence
         topic_stat = f"{root_topic}/2/stat/!{my_node_id}"
         client.publish(topic_stat,payload="online", retain=True)
         
-        # 1. Subscribe to ALL Encrypted Traffic
+        # Subscribe to ALL Encrypted Traffic
         # Mimics iOS app behavior:
         # - Subscribes to msh/2/e/#
         # - Filters out stat and json overhead by exclusively listening to 'e' (encrypted) topic
@@ -311,7 +311,7 @@ def on_connection(interface, **kwargs):
         logger.error("Failed to connect to MQTT broker: %s", e)
 
 def on_connection_lost(interface, **kwargs):
-    """Called when the Meshtastic connection occurs"""
+    """Called when the Meshtastic connection is reported lost"""
     global connection_lost_time
     logger.warning("Meshtastic connection reported LOST!")
     connection_lost_time = time.time()
@@ -453,8 +453,8 @@ def main():
     # Subscribe to events once
     pub.subscribe(on_connection, "meshtastic.connection.established")
     pub.subscribe(on_connection_lost, "meshtastic.connection.lost")
-    # pub.subscribe(on_receive, "meshtastic.receive")
-    # On_receive removed to match iOS proxy behavior (rely on mqttClientProxyMessage)
+    # Note: meshtastic.receive is NOT subscribed to, as we rely on mqttClientProxyMessage 
+    # intercepted in the Mixin classes to avoid duplicate publishing.
     
     while running:
         global iface, last_probe_time
@@ -531,7 +531,6 @@ def main():
                      # Default logic: If silent for X seconds, try to wake it up.
                      # If it doesn't wake up within 30s of probing, kill it.
                      
-     
                      if time_since_radio > HEALTH_CHECK_ACTIVITY_TIMEOUT:
                          # We are in the "Silence" zone
                          
