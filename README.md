@@ -11,6 +11,9 @@ A production-ready MQTT proxy for Meshtastic devices that enables bidirectional 
 - ✅ **Environment Configuration** - Flexible configuration via environment variables
 - ✅ **Production Ready** - Error handling, logging, and automatic reconnection
 - ✅ **Channel Support** - Works with all Meshtastic channels and message types
+- ✅ **SSL/TLS Support** - Auto-configuration for secure brokers (matches iOS behavior)
+- ✅ **Traffic Optimization** - Smart subscription strategy (`msh/2/e/#`) to prevent serial link saturation
+- ✅ **Hammering Prevention** - Correctly flags retained messages to avoid `NO_RESPONSE` storms
 - ✅ **MeshMonitor Compatible** - Seamless integration with MeshMonitor and other tools
 
 **Note:** BLE interface is not currently supported. Use TCP or Serial interfaces.
@@ -415,8 +418,8 @@ Users should be aware that the Docker image built from this repository bundles s
 ---
 
 **Status**: Production Ready ✅  
-**Version**: 1.0.1  
-**Last Updated**: 2026-01-10
+**Version**: 1.0.2
+**Last Updated**: 2026-01-17
 
 
 This application was developed with Antigravity and the help of Gemini
