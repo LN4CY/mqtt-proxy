@@ -99,9 +99,6 @@ signal.signal(signal.SIGTERM, handle_sigint)
 # ---------------------------------------------------------------------
 # MQTT Callbacks
 # ---------------------------------------------------------------------
-# ---------------------------------------------------------------------
-# MQTT Callbacks
-# ---------------------------------------------------------------------
 def on_mqtt_connect(client, userdata, flags, rc, props=None):
     """
     Callback when the MQTT client connects.
