@@ -100,6 +100,16 @@ signal.signal(signal.SIGTERM, handle_sigint)
 # MQTT Callbacks
 # ---------------------------------------------------------------------
 def on_mqtt_connect(client, userdata, flags, rc, props=None):
+    """
+    Callback when the MQTT client connects.
+    
+    Args:
+        client: The MQTT client instance.
+        userdata: The private user data as set in Client() or user_data_set().
+        flags: Response flags sent by the broker.
+        rc: The connection result code.
+        props: MQTT v5 properties (optional).
+    """
     global mqtt_connected, last_mqtt_activity
     logger.info("MQTT Connected with result code: %s", rc)
     if rc == 0:
@@ -109,22 +119,33 @@ def on_mqtt_connect(client, userdata, flags, rc, props=None):
         root_topic = current_mqtt_cfg.root if current_mqtt_cfg.root else "msh"
         # region = "US" # Removed to avoid duplication if root_topic already has region
         
-        # 0. Publish Online Presence
+        # Publish Online Presence
         topic_stat = f"{root_topic}/2/stat/!{my_node_id}"
         client.publish(topic_stat,payload="online", retain=True)
         
-        # 1. Subscribe to EVERYTHING (Wildcard) as requested
-        # Mimics iOS app "Transparent Proxy" behavior
-        topic_wildcard = f"{root_topic}/#"
-        logger.info("Subscribing to Wildcard Topic: %s", topic_wildcard)
-        client.subscribe(topic_wildcard)
-        
+        # Subscribe to ALL Encrypted Traffic
+        # Mimics iOS app behavior:
+        # - Subscribes to msh/2/e/#
+        # - Filters out stat and json overhead by exclusively listening to 'e' (encrypted) topic
+        topic_enc = f"{root_topic}/2/e/#"
+        logger.info("Subscribing to Encrypted Wildcard: %s", topic_enc)
+        client.subscribe(topic_enc)
+                     
     else:
         mqtt_connected = False
         logger.error("MQTT Connect failed: %s", rc)
 
 def on_mqtt_disconnect(client, userdata, flags, rc, props=None):
-    """Called when MQTT client disconnects"""
+    """
+    Callback when the MQTT client disconnects.
+    
+    Args:
+        client: The MQTT client instance.
+        userdata: The private user data.
+        flags: Disconnect flags.
+        rc: The disconnection result code (0 = graceful).
+        props: MQTT v5 properties (optional).
+    """
     global mqtt_connected
     mqtt_connected = False
     if rc != 0:
@@ -134,8 +155,13 @@ def on_mqtt_disconnect(client, userdata, flags, rc, props=None):
 
 def on_mqtt_message_callback(client, userdata, message):
     """
-    Called when a message is received from the MQTT broker.
-    We need to send this packet to the radio via the Interface.
+    Callback when a message is received from the MQTT broker.
+    Forwards the message to the Meshtastic radio via the Interface.
+    
+    Args:
+        client: The MQTT client instance.
+        userdata: The private user data.
+        message: The received MQTTMessage object (contains topic, payload, qos, retain).
     """
     global last_mqtt_activity, mqtt_rx_count
     try:
@@ -159,14 +185,16 @@ def on_mqtt_message_callback(client, userdata, message):
         last_mqtt_activity = time.time()
         mqtt_rx_count += 1
         
-        logger.info("MQTT->Node: Topic=%s Size=%d bytes", message.topic, len(message.payload))
+        logger.info("MQTT->Node: Topic=%s Size=%d bytes Retained=%s", message.topic, len(message.payload), message.retain)
         
         # Forward ALL MQTT messages directly to node as mqttClientProxyMessage
         # The node's firmware will handle parsing, channel mapping, and filtering
         mqtt_proxy_msg = mesh_pb2.MqttClientProxyMessage()
         mqtt_proxy_msg.topic = message.topic
         mqtt_proxy_msg.data = message.payload
-        mqtt_proxy_msg.retained = False  # Can be enhanced to detect retained messages
+        # Correctly propagate RETAINED flag to match iOS behavior (AccessoryManager+MQTT.swift)
+        # Previously hardcoded to False, which caused old messages to be treated as NEW and flooded the radio.
+        mqtt_proxy_msg.retained = message.retain
         
         to_radio = mesh_pb2.ToRadio()
         to_radio.mqttClientProxyMessage.CopyFrom(mqtt_proxy_msg)
@@ -182,7 +210,14 @@ def on_mqtt_message_callback(client, userdata, message):
 # Meshtastic Callbacks
 # ---------------------------------------------------------------------
 def on_connection(interface, **kwargs):
-    """Called when the TCP node connection is established"""
+    """
+    Callback when the TCP node connection is established.
+    Responsible for initializing the MQTT client and setting up SSL/TLS.
+    
+    Args:
+        interface: The Meshtastic interface instance.
+        kwargs: Additional arguments from the event.
+    """
     global mqtt_client, current_mqtt_cfg, my_node_id, last_radio_activity, connection_lost_time
     
     node = interface.localNode
@@ -209,15 +244,6 @@ def on_connection(interface, **kwargs):
         logger.error("Error getting node ID: %s", e)
         my_node_id = "unknown"
 
-    # Log available channels for debugging
-    if node.channels:
-        logger.info("Local Node Channels:")
-        for c in node.channels:
-            c_name = c.settings.name if c.settings else "<no-settings>"
-            c_role = c.role if hasattr(c, "role") else "?"
-            logger.info("  Index %d: Name='%s' Role=%s", c.index, c_name, c_role)
-
-
     # MQTT configuration
     if node.moduleConfig and node.moduleConfig.mqtt:
         cfg = node.moduleConfig.mqtt
@@ -243,9 +269,38 @@ def on_connection(interface, **kwargs):
     logger.info("  User: %s", mqtt_username)
     logger.info("  Root Topic: %s", mqtt_root)
     
-    mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    # Client ID matching iOS pattern
+    client_id = f"MeshtasticPythonMqttProxy-{my_node_id}"
+    logger.info("Setting MQTT Client ID: %s", client_id)
+    
+    mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=client_id)
     if mqtt_username and mqtt_password:
         mqtt_client.username_pw_set(mqtt_username, mqtt_password)
+        
+    # SSL/TLS Configuration
+    # Logic matches iOS app:
+    # 1. Force SSL if connecting to official broker
+    # 2. Use SSL if tls_enabled is set in config
+    # 3. Default to port 8883 for SSL unless otherwise specified
+    
+    use_ssl = getattr(cfg, 'tlsEnabled', False)
+    if "mqtt.meshtastic.org" in mqtt_address:
+         use_ssl = True
+         
+    if use_ssl:
+         logger.info("SSL/TLS Enabled")
+         # Configure TLS context
+         # We allow insecure (self-signed) certs to match iOS 'allowUntrustCACertificate' behavior typically needed for private brokers
+         import ssl
+         context = ssl.create_default_context()
+         context.check_hostname = False
+         context.verify_mode = ssl.CERT_NONE
+         mqtt_client.tls_set_context(context)
+         
+         # Switch port if default 1883
+         if mqtt_port == 1883:
+             mqtt_port = 8883
+             logger.info("Switching to default SSL port: 8883")
         
     mqtt_client.on_connect = on_mqtt_connect
     mqtt_client.on_disconnect = on_mqtt_disconnect
@@ -281,7 +336,14 @@ def on_connection(interface, **kwargs):
         logger.error("Failed to connect to MQTT broker: %s", e)
 
 def on_connection_lost(interface, **kwargs):
-    """Called when the Meshtastic connection occurs"""
+    """
+    Callback when the Meshtastic connection is reported lost.
+    Sets the connection lost timestamp to trigger the watchdog.
+    
+    Args:
+        interface: The Meshtastic interface instance.
+        kwargs: Additional arguments.
+    """
     global connection_lost_time
     logger.warning("Meshtastic connection reported LOST!")
     connection_lost_time = time.time()
@@ -296,111 +358,7 @@ def on_connection_lost(interface, **kwargs):
 # Track last packet time for activity monitoring
 last_packet_time = 0
 
-def on_receive(packet, interface):
-    """
-    DEPRECATED: This callback is no longer used.
-    The node now sends mqttClientProxyMessage directly (handled in _handleFromRadio).
-    Keeping this function to avoid breaking the event subscription, but it does nothing.
-    """
-    global last_packet_time
-    last_packet_time = time.time()
-    # return  # Early return - node uses mqttClientProxyMessage now
-    
-    try:
-        if not mqtt_client:
-            return
-            
-        mesh_packet = packet
-        # Validation: Ensure it is a protobuf
-        if not hasattr(mesh_packet, "SerializeToString"):
-             logger.warning("Received packet is not a protobuf object: %s", type(packet))
-             return
 
-        # Determine Channel Name
-        chan_name = None # Default (was LongFast, but that breaks fallback logic)
-        try:
-            # mesh_packet.channel is an int index
-            idx = mesh_packet.channel
-            node = iface.localNode
-            if node and node.channels:
-                for c in node.channels:
-                    # c.index might be missing if it's default? usually it's there.
-                    if c.index == idx and c.settings and c.settings.name:
-                        chan_name = c.settings.name
-                        break
-        except Exception as e:
-            logger.warning("Could not resolve channel name: %s", e)
-
-        if chan_name is None:
-             # Fallback: Use Index "Channel_N" instead of flattening to LongFast
-             # This preserves uniqueness if name is missing.
-             if idx == 0:
-                 chan_name = "LongFast"
-             else:
-                 chan_name = f"Chan_{idx}"
-                 logger.warning("Channel Name lookup failed for Index %d. Using '%s'", idx, chan_name)
-
-        # Create ServiceEnvelope
-        se = mqtt_pb2.ServiceEnvelope()
-        se.packet.CopyFrom(mesh_packet)
-        se.channel_id = chan_name
-        # Use the actual node ID as gateway_id to match virtual node behavior
-        # MeshMonitor's virtual node uses !10ae8907, so we must match it
-        se.gateway_id = f"!{my_node_id}" 
-        
-        # Topic: msh/REGION/2/[sub]/CHANNEL/!NODEID
-        from_node_num = getattr(mesh_packet, "from")
-        from_node_hex = "!{:08x}".format(from_node_num)
-        
-        root_topic = current_mqtt_cfg.root if current_mqtt_cfg.root else "msh"
-        
-        # Determine Subtopic and Retain Policy
-        # Always use 'e' (encrypted) topic to match iOS proxy behavior
-        # MeshMonitor expects packets on /e/ even if they contain decoded data
-        sub_topic = "e"
-        should_retain = False
-        
-        # If we have decoded info, we can be more specific
-        if hasattr(mesh_packet, "decoded") and mesh_packet.decoded.portnum:
-            pnum = mesh_packet.decoded.portnum
-            
-            # Debug: what is the actual pnum integer?
-            logger.debug("Packet Pnum: %s (Type: %s)", pnum, type(pnum))
-            
-            # Constants from PortNum enum (Verified from logs/proto)
-            # NODEINFO_APP = 4
-            # POSITION_APP = 3
-            # TELEMETRY_APP = 67
-            # NEIGHBORINFO_APP = 70
-            if pnum in [4, 3, 67, 70]:
-                should_retain = True
-                # Optional: Use 'map' subtopic for Position/NodeInfo? 
-                # If iOS uses 'e', we stick to 'e'.
-        
-        # Security/Optimization: Strip the 'decoded' (plaintext) field before publishing.
-        # We only want to send the encrypted 'payload' to the MQTT mesh, matching "Over-the-Air" behavior.
-        # Logic matches iOS/Android apps which don't leak plaintext to MQTT.
-        se.packet.ClearField("decoded") # Re-enabled to match iOS proxy behavior
-
-        topic = f"{root_topic}/2/{sub_topic}/{chan_name}/{from_node_hex}"
-        
-        payload = se.SerializeToString()
-        logger.debug("Publishing to MQTT: Topic=%s (Size=%d bytes) [From=%s Ch=%s] Retain=%s", 
-            topic, len(payload), from_node_hex, chan_name, should_retain)
-        
-        result = mqtt_client.publish(topic, payload, retain=should_retain)
-        if result.rc == mqtt.MQTT_ERR_SUCCESS:
-             # Update activity tracking for health check
-             global last_radio_activity, mqtt_tx_count, mqtt_tx_failures
-             last_radio_activity = time.time()
-             mqtt_tx_count += 1
-             mqtt_tx_failures = 0
-        else:
-             logger.warning("MQTT publish failed: rc=%s", result.rc)
-             mqtt_tx_failures += 1
-
-    except Exception as e:
-        logger.error("Error processing packet for MQTT: %s", e)
 
 
 # ---------------------------------------------------------------------
@@ -413,8 +371,11 @@ class MQTTProxyMixin:
     """
     def _handleFromRadio(self, fromRadio):
         """
-        Override internal library method to capture raw protobufs.
-        fromRadio is a mesh_pb2.FromRadio protobuf object OR bytes depending on version.
+        Intersects mqttClientProxyMessage from the node and publishes to MQTT.
+        
+        Args:
+            fromRadio: A mesh_pb2.FromRadio protobuf object OR bytes.
+                       Can contain a MeshPacket or a mqttClientProxyMessage.
         """
         try:
             # Update generic radio activity timestamp for ANY received data
@@ -499,7 +460,12 @@ class RawSerialInterface(MQTTProxyMixin, SerialInterface):
 def create_interface():
     """
     Factory function to create the appropriate interface based on INTERFACE_TYPE.
-    Returns the configured interface instance.
+    
+    Returns:
+        The configured interface instance (TCPInterface or SerialInterface).
+    
+    Raises:
+        ValueError: If an unknown INTERFACE_TYPE is specified.
     """
     interface_type = INTERFACE_TYPE
     
@@ -521,14 +487,19 @@ def create_interface():
     else:
         raise ValueError(f"Unknown interface type: {interface_type}. Must be 'tcp' or 'serial' (BLE not yet supported)")
 
+# ---------------------------------------------------------------------
+# Main entry point for the application.
+# Sets up event subscriptions and manages the main application loop,
+# including interface creation, connection monitoring, and health checks.
+# ---------------------------------------------------------------------
 def main():
     logger.info("MQTT Proxy starting (interface: %s)...", INTERFACE_TYPE.upper())
     
     # Subscribe to events once
     pub.subscribe(on_connection, "meshtastic.connection.established")
     pub.subscribe(on_connection_lost, "meshtastic.connection.lost")
-    # pub.subscribe(on_receive, "meshtastic.receive") # Standard event (dict) - Unsubscribing
-    pub.subscribe(on_receive, "proxy.receive.raw")    # Custom event (protobuf)
+    # Note: meshtastic.receive is NOT subscribed to, as we rely on mqttClientProxyMessage 
+    # intercepted in the Mixin classes to avoid duplicate publishing.
     
     while running:
         global iface, last_probe_time
@@ -605,7 +576,6 @@ def main():
                      # Default logic: If silent for X seconds, try to wake it up.
                      # If it doesn't wake up within 30s of probing, kill it.
                      
-     
                      if time_since_radio > HEALTH_CHECK_ACTIVITY_TIMEOUT:
                          # We are in the "Silence" zone
                          

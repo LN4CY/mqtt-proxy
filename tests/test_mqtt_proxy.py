@@ -2,7 +2,7 @@
 import os
 import sys
 import pytest
-from unittest.mock import MagicMock, patch, ANY
+from unittest.mock import MagicMock, patch, Mock, ANY
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -23,7 +23,7 @@ class TestMQTTProxy:
 
     @patch('paho.mqtt.client.Client')
     def test_on_mqtt_connect_success(self, mock_mqtt_client_class):
-        """Test successful MQTT connection callback"""
+        """Test successful MQTT connection callback with channel subscriptions"""
         client = mock_mqtt_client_class.return_value
         
         # Mock global current_mqtt_cfg
@@ -31,18 +31,33 @@ class TestMQTTProxy:
         mock_cfg.root = "msh"
         mqtt_proxy.current_mqtt_cfg = mock_cfg
         mqtt_proxy.my_node_id = "1234abcd"
+        
+        # Mock global current_channels
+        c1 = MagicMock()
+        c1.index = 0
+        c1.settings.name = "" # Should default to LongFast
+        
+        c2 = MagicMock()
+        c2.index = 1
+        c2.settings.name = "Private"
+        
+        mqtt_proxy.current_channels = [c1, c2]
 
         # Test with success code 0
         mqtt_proxy.on_mqtt_connect(client, None, None, 0)
         
-        # Verify subscription calls
-        # Topic wildcard: msh/#
-        expected_topic = "msh/#"
-        client.subscribe.assert_called_with(expected_topic)
-        
         # Verify status publish
         expected_stat_topic = "msh/2/stat/!1234abcd"
-        client.publish.assert_called_with(expected_stat_topic, payload="online", retain=True)
+        client.publish.assert_any_call(expected_stat_topic, payload="online", retain=True)
+        
+        # Verify Channel Subscriptions - NOW just matches iOS "e" wildcard
+        # Should NOT iterate channels, just one catch-all for encrypted
+        client.subscribe.assert_called_once_with("msh/2/e/#")
+        
+        # Ensure global wildcard NOT called
+        # Get all args passed to subscribe
+        calls = [c[0][0] for c in client.subscribe.call_args_list]
+        assert "msh/#" not in calls
 
     def test_environment_variables_defaults(self):
         """Test that default environment variables are set correctly"""
@@ -62,6 +77,7 @@ class TestMQTTProxy:
         message = MagicMock()
         message.topic = "msh/2/c/LongFast/!anothernode"
         message.payload = b"test_payload"
+        message.retain = False # Explicitly not retained
         
         # We need a mock interface to be present
         mqtt_proxy.iface = mock_tcp_interface.return_value
@@ -188,6 +204,29 @@ class TestMQTTProxy:
         with pytest.raises(ValueError):
             mqtt_proxy.create_interface()
 
+    def test_propagate_retained_message(self):
+        """Test that retained messages are forwarded with default retained flag"""
+        mock_iface = MagicMock()
+        mock_iface.localNode.nodeNum = 123
+        mqtt_proxy.iface = mock_iface
+        # Set global my_node_id to avoid loop protection issues if not set
+        mqtt_proxy.my_node_id = "1234abcd"
+        
+        # Prepare a mock MQTT message
+        msg = MagicMock()
+        msg.topic = "msh/US/2/e/LongFast/!abcdef12"  # Different from my_node_id
+        msg.payload = b"test_payload"
+        msg.retain = True
+        
+        # Verify call to radio WITH retained=True
+        mqtt_proxy.on_mqtt_message_callback(None, None, msg)
+        mock_iface._sendToRadioImpl.assert_called_once()
+        
+        args, _ = mock_iface._sendToRadioImpl.call_args
+        to_radio = args[0]
+        assert to_radio.mqttClientProxyMessage.retained == True
+
+
     def test_on_mqtt_disconnect(self):
         """Test MQTT disconnect callback"""
         mqtt_proxy.mqtt_connected = True
@@ -225,6 +264,7 @@ class TestMQTTProxy:
         mock_mqtt.username = "user"
         mock_mqtt.password = "pass"
         mock_mqtt.root = "msh"
+        mock_mqtt.tlsEnabled = False
         
         mock_node.moduleConfig.mqtt = mock_mqtt
         mock_iface.localNode = mock_node
@@ -239,93 +279,67 @@ class TestMQTTProxy:
             assert mqtt_proxy.my_node_id == "1234abcd"
             
             # Verify Client setup
+            # Paho Client constructor called with CallbackAPIVersion.VERSION2 and client_id
+            mock_client_cls.assert_called_with(ANY, client_id="MeshtasticPythonMqttProxy-1234abcd")
+            
             mock_client.username_pw_set.assert_called_with("user", "pass")
             mock_client.connect.assert_called_with("1.2.3.4", 1883, 60)
             mock_client.loop_start.assert_called()
 
+
+
+
     @patch('paho.mqtt.client.Client')
-    def test_on_receive_legacy(self, mock_client_cls):
-        """Test legacy on_receive logic (Mesh Packet -> MQTT 'ServiceEnvelope')"""
-        # Setup global mqtt client
-        mqtt_proxy.mqtt_client = mock_client_cls.return_value
-        mqtt_proxy.mqtt_client.publish.return_value.rc = 0
-        
-        # Setup config
-        mqtt_proxy.current_mqtt_cfg = MagicMock()
-        mqtt_proxy.current_mqtt_cfg.root = "msh"
-        mqtt_proxy.my_node_id = "test_gateway"
-        
-        # Setup Interface and Node for channel lookup
+    def test_mqtt_ssl_configuration(self, mock_client_cls):
+        """Test SSL/TLS configuration logic"""
+        # 1. Test Regular (No SSL)
         mock_iface = MagicMock()
         mock_node = MagicMock()
-        c0 = MagicMock()
-        c0.index = 0
-        c0.settings.name = "LongFast"
-        mock_node.channels = [c0]
+        mock_node.nodeNum = 123
+        mock_node.moduleConfig.mqtt.enabled = True
+        mock_node.moduleConfig.mqtt.address = "example.com"
+        mock_node.moduleConfig.mqtt.port = 1883
+        mock_node.moduleConfig.mqtt.tlsEnabled = False
         mock_iface.localNode = mock_node
-        mqtt_proxy.iface = mock_iface
         
-        # Create a REAL packet to satisfy Protobuf CopyFrom type check
-        from meshtastic import mesh_pb2
-        packet = mesh_pb2.MeshPacket()
-        packet.channel = 0
-        setattr(packet, "from", 123456789)
-        packet.to = 0xFFFFFFFF
-        packet.decoded.portnum = 1
-        packet.decoded.payload = b"test"
+        mqtt_proxy.on_connection(mock_iface)
         
-        # Verify call
-        mqtt_proxy.on_receive(packet, mock_iface)
+        # Verify NO TLS set
+        mock_client = mock_client_cls.return_value
+        mock_client.tls_set_context.assert_not_called()
+        mock_client.connect.assert_called_with("example.com", 1883, 60)
         
-        # Expected topic construction: msh/2/e/LongFast/!075bcd15 (hex of 123456789)
-        # 123456789 = 0x075BCD15
-        expected_from = "!{:08x}".format(123456789)
-        expected_topic = f"msh/2/e/LongFast/{expected_from}"
+        # 2. Test Explicit SSL
+        mock_node.moduleConfig.mqtt.tlsEnabled = True
+        mqtt_proxy.on_connection(mock_iface)
         
-        # The payload is a serialized ServiceEnvelope
-        # We can't match exact bytes easily without constructing a real protobuf
-        # So we match using ANY or just check topic
-        mqtt_proxy.mqtt_client.publish.assert_called()
-        args, kwargs = mqtt_proxy.mqtt_client.publish.call_args
-        assert args[0] == expected_topic
-        # retain should be False by default for generic packets
-        # assert kwargs.get('retain') == False # retain might not be in kwargs if positional
+        # Verify TLS set and port switch
+        mock_client.tls_set_context.assert_called()
+        mock_client.connect.assert_called_with("example.com", 8883, 60)
+        
+        # 3. Test Implicit SSL (mqtt.meshtastic.org)
+        mock_node.moduleConfig.mqtt.address = "mqtt.meshtastic.org"
+        mock_node.moduleConfig.mqtt.tlsEnabled = False # Disabled in config
+        mock_node.moduleConfig.mqtt.port = 1883
+        
+        mqtt_proxy.on_connection(mock_iface)
+        
+        # Verify TLS enforced
+        mock_client.tls_set_context.assert_called()
+        mock_client.connect.assert_called_with("mqtt.meshtastic.org", 8883, 60)
+        
+        # 4. Test SSL with Custom Port
+        mock_node.moduleConfig.mqtt.address = "secure.local"
+        mock_node.moduleConfig.mqtt.tlsEnabled = True
+        mock_node.moduleConfig.mqtt.port = 9999
+        
+        mqtt_proxy.on_connection(mock_iface)
+        
+        # Verify TLS set but port NOT switched
+        mock_client.connect.assert_called_with("secure.local", 9999, 60)
 
 
-    @patch('paho.mqtt.client.Client')
-    def test_publish_failure_counting(self, mock_client_cls):
-        """Test that publish failures increment the failure counter and success resets it"""
-        # Setup global mqtt client
-        mqtt_proxy.mqtt_client = mock_client_cls.return_value
-        
-        # 1. Test Failure Increment
-        mqtt_proxy.mqtt_client.publish.return_value.rc = 1 # Error
-        mqtt_proxy.mqtt_tx_failures = 0 # Reset start
-        
-        # We need a dummy packet
-        from meshtastic import mesh_pb2
-        packet = mesh_pb2.MeshPacket()
-        packet.channel = 0
-        setattr(packet, "from", 123)
-        packet.to = 456
-        
-        # Setup mocks for on_receive
-        mock_iface = MagicMock()
-        mock_iface.localNode.channels = []
-        
-        # Trigger failure
-        mqtt_proxy.on_receive(packet, mock_iface)
-        
-        assert mqtt_proxy.mqtt_tx_failures == 1
-        
-        # Trigger another failure
-        mqtt_proxy.on_receive(packet, mock_iface)
-        assert mqtt_proxy.mqtt_tx_failures == 2
-        
-        # 2. Test Success Reset
-        mqtt_proxy.mqtt_client.publish.return_value.rc = 0 # Success
-        mqtt_proxy.on_receive(packet, mock_iface)
-        assert mqtt_proxy.mqtt_tx_failures == 0
+
 
     def test_proxy_mixin_failure_counting(self):
         """Test failure counting in the Mixin (FromRadio path)"""
