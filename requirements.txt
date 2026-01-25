@@ -2,7 +2,7 @@
 # Pinned versions for reproducible builds
 
 # Meshtastic Python library
-meshtastic==2.7.5
+meshtastic==2.7.7
 
 # MQTT client
 paho-mqtt==2.1.0

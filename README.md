@@ -326,7 +326,7 @@ The proxy uses a factory pattern to support multiple interface types:
 
 ### Python Dependencies
 
-- meshtastic==2.7.5
+- meshtastic==2.7.7
 - paho-mqtt==2.1.0
 - pubsub==4.0.7
 - protobuf>=3.20.0,<6.0.0
@@ -418,8 +418,8 @@ Users should be aware that the Docker image built from this repository bundles s
 ---
 
 **Status**: Production Ready ✅  
-**Version**: 1.0.3
-**Last Updated**: 2026-01-17
+**Version**: 1.0.4
+**Last Updated**: 2026-01-25
 
 
 This application was developed with Antigravity and the help of Gemini
