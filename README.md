@@ -1,5 +1,9 @@
 # Meshtastic MQTT Proxy
 
+## Version History
+- **v1.1.0** (2026-01-25): Fixed critical infinite recursion bug in connection lost handler. Added debounce and safe interface closing.
+- **v1.0.0**: Initial Release
+
 A production-ready MQTT proxy for Meshtastic devices that enables bidirectional message forwarding between Meshtastic nodes and MQTT brokers. Supports TCP and Serial interface connections with a clean factory pattern architecture.
 
 ## Features
