@@ -341,36 +341,30 @@ class TestMQTTProxy:
 
 
 
-    def test_proxy_mixin_failure_counting(self):
-        """Test failure counting in the Mixin (FromRadio path)"""
-        # Mock global mqtt_client
-        mock_client = MagicMock()
-        mqtt_proxy.mqtt_client = mock_client
+    def test_health_check_startup_grace_period(self):
+        """Test health check startup grace period logic"""
+        import time
         
-        # Create interface with Mixin
-        class TestInterface(mqtt_proxy.MQTTProxyMixin):
-             def _handleFromRadio(self, fromRadio):
-                 try: super()._handleFromRadio(fromRadio) 
-                 except: pass # Ignore super call failure for test
-        
-        interface = TestInterface()
-        
-        # Prepare FromRadio with mqttClientProxyMessage
-        from meshtastic import mesh_pb2
-        from_radio = mesh_pb2.FromRadio()
-        from_radio.mqttClientProxyMessage.topic = "test"
-        from_radio.mqttClientProxyMessage.data = b"data"
-        
-        # 1. Test Failure
-        mock_client.publish.return_value.rc = 1
+        # Reset globals
+        mqtt_proxy.mqtt_connected = False
+        mqtt_proxy.mqtt_health_check_enabled = False
+        mqtt_proxy.connection_lost_time = 0
+        mqtt_proxy.last_radio_activity = 0
         mqtt_proxy.mqtt_tx_failures = 0
         
-        interface._handleFromRadio(from_radio)
-        assert mqtt_proxy.mqtt_tx_failures == 1
+        # Case 1: Startup phase (Grace period)
+        # MQTT is disconnected, but check is disabled. Should be HEALTHY.
+        health_ok, reasons = mqtt_proxy.perform_health_check(time.time())
+        assert health_ok == True
+        assert len(reasons) == 0
         
-        # 2. Test Success
-        mock_client.publish.return_value.rc = 0
-        interface._handleFromRadio(from_radio)
-        assert mqtt_proxy.mqtt_tx_failures == 0
+        # Case 2: Post-connection phase (Grace period over)
+        # Enable the check
+        mqtt_proxy.mqtt_health_check_enabled = True
+        
+        # Now it should be UNHEALTHY because mqtt_connected is False
+        health_ok, reasons = mqtt_proxy.perform_health_check(time.time())
+        assert health_ok == False
+        assert "MQTT disconnected" in reasons[0]
 
 

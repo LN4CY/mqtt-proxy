@@ -63,6 +63,8 @@ my_node_id = None
 
 # Health monitoring state
 mqtt_connected = False
+# Thanks to ritiek for discovering the race condition and providing the fix.
+mqtt_health_check_enabled = False
 last_mqtt_activity = 0  # Activity FROM MQTT Broker (RX)
 last_radio_activity = 0 # Activity FROM Radio Node (RX from Radio, to be TX to MQTT)
 connection_lost_time = 0 # Timestamp when connection was reported LOST
@@ -110,10 +112,11 @@ def on_mqtt_connect(client, userdata, flags, rc, props=None):
         rc: The connection result code.
         props: MQTT v5 properties (optional).
     """
-    global mqtt_connected, last_mqtt_activity
+    global mqtt_connected, last_mqtt_activity, mqtt_health_check_enabled
     logger.info("MQTT Connected with result code: %s", rc)
     if rc == 0:
         mqtt_connected = True
+        mqtt_health_check_enabled = True
         last_mqtt_activity = time.time()  # Reset activity timer on connect
     if rc == 0 and current_mqtt_cfg:
         root_topic = current_mqtt_cfg.root if current_mqtt_cfg.root else "msh"
@@ -488,6 +491,79 @@ def create_interface():
         raise ValueError(f"Unknown interface type: {interface_type}. Must be 'tcp' or 'serial' (BLE not yet supported)")
 
 # ---------------------------------------------------------------------
+# Health Check Logic
+# ---------------------------------------------------------------------
+def perform_health_check(current_time):
+    """
+    Performs health checks and returns status.
+    Returns:
+        tuple: (health_ok (bool), health_reasons (list))
+    """
+    global mqtt_connected, mqtt_health_check_enabled
+    global connection_lost_time
+    global last_radio_activity, last_probe_time
+    global mqtt_tx_failures
+    global iface
+    
+    health_ok = True
+    health_reasons = []
+    
+    # Check 1: MQTT must be connected (only check after initial connection established)
+    if mqtt_health_check_enabled and not mqtt_connected:
+        health_ok = False
+        health_reasons.append("MQTT disconnected")
+    
+    # Check 2: Connection Lost Watchdog
+    # If on_connection_lost reported a loss, and we haven't recovered in 60s (or env var) -> RESTART
+    if connection_lost_time > 0:
+        time_since_lost = current_time - connection_lost_time
+        if time_since_lost > 60:
+             logger.error("Connection LOST for %ds. Forcing restart...", int(time_since_lost))
+             import sys
+             sys.exit(1)
+
+    # Check 3: Radio Watchdog (Probe & Kill)
+    # If we have ever established a connection (last_radio_activity > 0)
+    if last_radio_activity > 0:
+        time_since_radio = current_time - last_radio_activity
+        
+        # Using HEALTH_CHECK_ACTIVITY_TIMEOUT as the "Silence Threshold" before probing
+        # Default logic: If silent for X seconds, try to wake it up.
+        # If it doesn't wake up within 30s of probing, kill it.
+        
+        if time_since_radio > HEALTH_CHECK_ACTIVITY_TIMEOUT:
+            # We are in the "Silence" zone
+            
+            time_since_probe = current_time - last_probe_time
+            
+            # Check if we are currently waiting for a probe response
+            # Window: 0 to 40 seconds after probe
+            if time_since_probe < 40:
+                if time_since_probe > 30:
+                    # We probed > 30s ago and still no activity (outer loop condition)
+                    health_ok = False
+                    health_reasons.append(f"Radio silent for {int(time_since_radio)}s (Probed {int(time_since_probe)}s ago - NO REPLY)")
+                else:
+                    # Waiting for response...
+                    pass 
+            else:
+                # We haven't probed recently (or at least not in the last 40s). 
+                # Send a NEW probe.
+                logger.warning(f"Radio silent for {int(time_since_radio)}s. Sending active probe...")
+                try:
+                    last_probe_time = current_time
+                    if iface:
+                         iface.sendPosition()
+                except Exception as e:
+                    logger.warning("Failed to send active probe: %s", e)
+    # Check 4: MQTT Publish Failures
+    if mqtt_tx_failures > 5:
+        health_ok = False
+        health_reasons.append(f"Recurring MQTT Publish Failures ({mqtt_tx_failures})")
+        
+    return health_ok, health_reasons
+
+# ---------------------------------------------------------------------
 # Main entry point for the application.
 # Sets up event subscriptions and manages the main application loop,
 # including interface creation, connection monitoring, and health checks.
@@ -550,61 +626,8 @@ def main():
                      last_status_log_time = current_time
                  
                  # Health check logic
-                 health_ok = True
-                 health_reasons = []
-                 
-                 # Check 1: MQTT must be connected
-                 if not mqtt_connected:
-                     health_ok = False
-                     health_reasons.append("MQTT not connected")
-                 
-                 # Check 2: Connection Lost Watchdog
-                 # If on_connection_lost reported a loss, and we haven't recovered in 60s (or env var) -> RESTART
-                 if connection_lost_time > 0:
-                     time_since_lost = current_time - connection_lost_time
-                     if time_since_lost > 60:
-                          logger.error("Connection LOST for %ds. Forcing restart...", int(time_since_lost))
-                          import sys
-                          sys.exit(1)
-
-                 # Check 3: Radio Watchdog (Probe & Kill)
-                 # If we have ever established a connection (last_radio_activity > 0)
-                 if last_radio_activity > 0:
-                     time_since_radio = current_time - last_radio_activity
-                     
-                     # Using HEALTH_CHECK_ACTIVITY_TIMEOUT as the "Silence Threshold" before probing
-                     # Default logic: If silent for X seconds, try to wake it up.
-                     # If it doesn't wake up within 30s of probing, kill it.
-                     
-                     if time_since_radio > HEALTH_CHECK_ACTIVITY_TIMEOUT:
-                         # We are in the "Silence" zone
-                         
-                         time_since_probe = current_time - last_probe_time
-                         
-                         # Check if we are currently waiting for a probe response
-                         # Window: 0 to 40 seconds after probe
-                         if time_since_probe < 40:
-                             if time_since_probe > 30:
-                                 # We probed > 30s ago and still no activity (outer loop condition)
-                                 health_ok = False
-                                 health_reasons.append(f"Radio silent for {int(time_since_radio)}s (Probed {int(time_since_probe)}s ago - NO REPLY)")
-                             else:
-                                 # Waiting for response...
-                                 pass 
-                         else:
-                             # We haven't probed recently (or at least not in the last 40s). 
-                             # Send a NEW probe.
-                             logger.warning(f"Radio silent for {int(time_since_radio)}s. Sending active probe...")
-                             try:
-                                 last_probe_time = current_time
-                                 if iface:
-                                      iface.sendPosition()
-                             except Exception as e:
-                                 logger.warning("Failed to send active probe: %s", e)
-                 # Check 4: MQTT Publish Failures
-                 if mqtt_tx_failures > 5:
-                     health_ok = False
-                     health_reasons.append(f"Recurring MQTT Publish Failures ({mqtt_tx_failures})")
+                 # Health check logic
+                 health_ok, health_reasons = perform_health_check(current_time)
 
                  
                  # Update heartbeat file
