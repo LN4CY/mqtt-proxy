@@ -418,7 +418,7 @@ Users should be aware that the Docker image built from this repository bundles s
 ---
 
 **Status**: Production Ready ✅  
-**Version**: 1.0.4
+**Version**: 1.0.5
 **Last Updated**: 2026-01-25
 
 
