@@ -347,15 +347,21 @@ def on_connection_lost(interface, **kwargs):
         interface: The Meshtastic interface instance.
         kwargs: Additional arguments.
     """
-    global connection_lost_time
+    global connection_lost_time, iface
+    
+    # Debounce: If we already reported lost recently, don't spam or recurse
+    if connection_lost_time > 0 and (time.time() - connection_lost_time < 2):
+        return
+
     logger.warning("Meshtastic connection reported LOST!")
     connection_lost_time = time.time()
-    # We can't easily force the main thread to restart, but we can rely on iface.close() happening?
-    # Or just let the main loop eventually catch it? 
-    # Usually connection lost implies we should close and retry.
+    
+    # Safely close interface prevents recursion if close() triggers event again
     if iface:
+        old_iface = iface
+        iface = None 
         try:
-           iface.close()
+           old_iface.close()
         except: pass
 
 # Track last packet time for activity monitoring
