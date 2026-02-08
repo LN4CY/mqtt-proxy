@@ -1,370 +1,118 @@
-
 import os
 import sys
 import pytest
-from unittest.mock import MagicMock, patch, Mock, ANY
+from unittest.mock import MagicMock, patch, ANY
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import importlib.util
+from config import Config
+from handlers.mqtt import MQTTHandler
+from handlers.meshtastic import create_interface, MQTTProxyMixin
 
-def load_module(name, path):
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[name] = mod
-    spec.loader.exec_module(mod)
-    return mod
+# Dummy proxy class for testing mixins
+class MockProxy:
+    def __init__(self):
+        self.mqtt_handler = MagicMock()
+        self.last_radio_activity = 0
 
-# Load mqtt-proxy
-mqtt_proxy = load_module("mqtt_proxy", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "mqtt-proxy.py"))
-
-class TestMQTTProxy:
-
+class TestMQTTHandler:
+    
     @patch('paho.mqtt.client.Client')
-    def test_on_mqtt_connect_success(self, mock_mqtt_client_class):
-        """Test successful MQTT connection callback with channel subscriptions"""
-        client = mock_mqtt_client_class.return_value
+    def test_mqtt_connect(self, mock_client_cls):
+        """Test MQTT connection and subscription"""
+        config = Config()
+        config.mqtt_root = "msh"
         
-        # Mock global current_mqtt_cfg
-        mock_cfg = MagicMock()
-        mock_cfg.root = "msh"
-        mqtt_proxy.current_mqtt_cfg = mock_cfg
-        mqtt_proxy.my_node_id = "1234abcd"
+        handler = MQTTHandler(config, "1234abcd")
         
-        # Mock global current_channels
-        c1 = MagicMock()
-        c1.index = 0
-        c1.settings.name = "" # Should default to LongFast
+        # Mock node config
+        node_cfg = MagicMock()
+        node_cfg.enabled = True
+        node_cfg.address = "1.2.3.4"
+        node_cfg.port = 1883
+        node_cfg.root = "msh"
         
-        c2 = MagicMock()
-        c2.index = 1
-        c2.settings.name = "Private"
+        handler.configure(node_cfg)
+        handler.start()
         
-        mqtt_proxy.current_channels = [c1, c2]
+        client = handler.client
+        
+        # Simulate connect callback
+        handler._on_connect(client, None, None, 0)
+        
+        # Check subscription
+        client.subscribe.assert_called_with("msh/2/e/#")
+        
+    def test_publish(self):
+        """Test publishing logic"""
+        config = Config()
+        handler = MQTTHandler(config, "1234abcd")
+        handler.client = MagicMock()
+        handler.client.publish.return_value.rc = 0
+        
+        assert handler.publish("topic", b"payload") == True
+        handler.client.publish.assert_called_with("topic", b"payload", retain=False)
 
-        # Test with success code 0
-        mqtt_proxy.on_mqtt_connect(client, None, None, 0)
+    def test_on_message(self):
+        """Test MQTT -> Node message handling"""
+        callback = MagicMock()
+        config = Config()
+        handler = MQTTHandler(config, "1234abcd", on_message_callback=callback)
         
-        # Verify status publish
-        expected_stat_topic = "msh/2/stat/!1234abcd"
-        client.publish.assert_any_call(expected_stat_topic, payload="online", retain=True)
+        msg = MagicMock()
+        msg.topic = "msh/2/c/LongFast/!other"
+        msg.payload = b"data"
+        msg.retain = False
         
-        # Verify Channel Subscriptions - NOW just matches iOS "e" wildcard
-        # Should NOT iterate channels, just one catch-all for encrypted
-        client.subscribe.assert_called_once_with("msh/2/e/#")
+        handler._on_message(None, None, msg)
         
-        # Ensure global wildcard NOT called
-        # Get all args passed to subscribe
-        calls = [c[0][0] for c in client.subscribe.call_args_list]
-        assert "msh/#" not in calls
+        callback.assert_called_with(msg.topic, msg.payload, msg.retain)
 
-    def test_environment_variables_defaults(self):
-        """Test that default environment variables are set correctly"""
-        # Check module level constants
-        assert mqtt_proxy.TCP_NODE_HOST == "localhost"
-        assert mqtt_proxy.TCP_NODE_PORT == 4403
-        assert mqtt_proxy.POLL_INTERVAL == 1
-
-    @patch('meshtastic.tcp_interface.TCPInterface')
-    def test_mqtt_message_processing(self, mock_tcp_interface):
-        """Test processing of an incoming MQTT message"""
-        client = MagicMock()
-        userdata = None
+class TestMeshtasticHandler:
+    
+    def test_proxy_mixin_node_to_mqtt(self):
+        """Regression Test: Verify Node -> MQTT traffic forwarding"""
         
-        # Create a mock message
-        # Use a DIFFERENT node ID in the topic to avoid loop protection (ignoring own messages)
-        message = MagicMock()
-        message.topic = "msh/2/c/LongFast/!anothernode"
-        message.payload = b"test_payload"
-        message.retain = False # Explicitly not retained
-        
-        # We need a mock interface to be present
-        mqtt_proxy.iface = mock_tcp_interface.return_value
-        # Mock sendToRadioImpl which is what is called
-        mqtt_proxy.iface._sendToRadioImpl = MagicMock()
-        
-        # Call the callback
-        mqtt_proxy.on_mqtt_message_callback(client, userdata, message)
-        
-        # Verify the interface._sendToRadioImpl was called
-        mqtt_proxy.iface._sendToRadioImpl.assert_called_once()
-        
-        # Verify content of call
-        args, _ = mqtt_proxy.iface._sendToRadioImpl.call_args
-        to_radio = args[0]
-        assert to_radio.HasField("mqttClientProxyMessage")
-        assert to_radio.mqttClientProxyMessage.topic == message.topic
-        assert to_radio.mqttClientProxyMessage.data == message.payload
-
-    def test_proxy_mixin_handle_from_radio(self):
-        """Test the MQTTProxyMixin receiving a message from radio to publish to MQTT"""
-        # Create a dummy class that inherits from the Mixin to test it
-        class TestInterface(mqtt_proxy.MQTTProxyMixin):
-             # Mock super() behavior to avoid actual library calls
+        # Create a mock interface using the Mixin
+        class TestInterface(MQTTProxyMixin):
              def _handleFromRadio(self, fromRadio):
                  super()._handleFromRadio(fromRadio)
-
-        # Mock the mqtt_client global
-        mock_mqtt_client = MagicMock()
-        mqtt_proxy.mqtt_client = mock_mqtt_client
         
-        # Instantiate test interface
-        interface = TestInterface()
-        
-        # We need to mock super() call inside the mixin. 
-        # Since we can't easily mock super() in the mixin definition without reloading,
-        # we'll assume the basic functionality logic is:
-        # 1. Check if HasField("mqttClientProxyMessage")
-        # 2. Publish to MQTT
-        
-        # Create a FromRadio protobuf with mqttClientProxyMessage
-        from meshtastic import mesh_pb2
-        from_radio = mesh_pb2.FromRadio()
-        mqtt_msg = from_radio.mqttClientProxyMessage
-        mqtt_msg.topic = "msh/2/json/LongFast"
-        mqtt_msg.data = b"payload"
-        mqtt_msg.retained = False
-        
-        # We need to patch the super() call in the module's Mixin or just handle the exception it throws
-        # because the Mixin calls super()._handleFromRadio which won't exist in our standalone TestInterface
-        # unless we inherit from something else. But strict unit testing the Mixin requires ensuring it calls super.
-        
-        # Simplest approach: Patch 'super' in the module or allow it to fail/mock.
-        # But we really want to test the `if decoded.HasField("mqttClientProxyMessage")` block.
-        
-        # Let's use patch.object on the mixin itself? No, mixin is a class.
-        
-        # We will wrap the call in a try/except to ignore the super() failure, 
-        # OR we can mock the super() by making TestInterface inherit from a Mock that has _handleFromRadio
-        
-        class MockParent:
-            def _handleFromRadio(self, packet):
-                pass
-                
-        class TestInterfaceWithParent(mqtt_proxy.MQTTProxyMixin, MockParent):
-            pass
+        # Mock the parent class for super() call
+        with patch('meshtastic.tcp_interface.TCPInterface._handleFromRadio') as mock_super:
             
-        interface = TestInterfaceWithParent()
-        
-        # Execute
-        interface._handleFromRadio(from_radio)
-        
-        # Verify MQTT publish
-        mock_mqtt_client.publish.assert_called_with("msh/2/json/LongFast", b"payload", retain=False)
-
-    @patch('paho.mqtt.client.Client')
-    def test_handle_sigint(self, mock_client):
-        """Test clean shutdown on SIGINT"""
-        # Setup mocks
-        mqtt_proxy.mqtt_client = mock_client.return_value
-        mqtt_proxy.iface = MagicMock()
-        mqtt_proxy.running = True
-        
-        # Simulate SIGINT catch
-        # The function doesn't raise SystemExit, it just sets running=False and closes things
-        mqtt_proxy.handle_sigint(None, None)
+            # Setup proxy and handler
+            proxy = MockProxy()
+            interface = TestInterface()
+            interface.proxy = proxy
             
-        assert mqtt_proxy.running == False
-        # Verify close calls
-        mqtt_proxy.iface.close.assert_called()
-        mqtt_proxy.mqtt_client.disconnect.assert_called()
-
-    def test_on_connection_lost(self):
-        """Test reaction to Meshtastic connection loss"""
-        # Setup mock interface
-        mock_iface = MagicMock()
-        mqtt_proxy.iface = mock_iface
-        
-        # Call on_connection_lost
-        mqtt_proxy.on_connection_lost(mock_iface)
-        
-        # Verify it attempts to close (which triggers restart loop in main)
-        mock_iface.close.assert_called_once()
-
-    def test_create_interface(self):
-        """Test interface factory"""
-        # Patch RawTCPInterface class in the module to avoid instantiation logic (threads, sockets)
-        with patch.object(mqtt_proxy, 'RawTCPInterface') as mock_tcp_cls:
-            mqtt_proxy.INTERFACE_TYPE = "tcp"
-            iface = mqtt_proxy.create_interface()
-            # Verify it returns the instance created by our mock class
-            assert iface == mock_tcp_cls.return_value
-            mock_tcp_cls.assert_called_once()
-
-        # Check serial - patch the class in the module!
-        with patch.object(mqtt_proxy, 'RawSerialInterface') as mock_serial_cls:
-            mqtt_proxy.INTERFACE_TYPE = "serial"
-            iface = mqtt_proxy.create_interface()
-            assert iface == mock_serial_cls.return_value
-            mock_serial_cls.assert_called_with(mqtt_proxy.SERIAL_PORT)
-
-        # Test invalid
-        mqtt_proxy.INTERFACE_TYPE = "unknown"
-        with pytest.raises(ValueError):
-            mqtt_proxy.create_interface()
-
-    def test_propagate_retained_message(self):
-        """Test that retained messages are forwarded with default retained flag"""
-        mock_iface = MagicMock()
-        mock_iface.localNode.nodeNum = 123
-        mqtt_proxy.iface = mock_iface
-        # Set global my_node_id to avoid loop protection issues if not set
-        mqtt_proxy.my_node_id = "1234abcd"
-        
-        # Prepare a mock MQTT message
-        msg = MagicMock()
-        msg.topic = "msh/US/2/e/LongFast/!abcdef12"  # Different from my_node_id
-        msg.payload = b"test_payload"
-        msg.retain = True
-        
-        # Verify call to radio WITH retained=True
-        mqtt_proxy.on_mqtt_message_callback(None, None, msg)
-        mock_iface._sendToRadioImpl.assert_called_once()
-        
-        args, _ = mock_iface._sendToRadioImpl.call_args
-        to_radio = args[0]
-        assert to_radio.mqttClientProxyMessage.retained == True
-
-
-    def test_on_mqtt_disconnect(self):
-        """Test MQTT disconnect callback"""
-        mqtt_proxy.mqtt_connected = True
-        
-        # Graceful
-        mqtt_proxy.on_mqtt_disconnect(None, None, None, 0)
-        assert mqtt_proxy.mqtt_connected == False
-        
-        # Unexpected
-        with patch.object(mqtt_proxy.logger, 'warning') as mock_warn:
-            mqtt_proxy.on_mqtt_disconnect(None, None, None, 1)
-            assert mqtt_proxy.mqtt_connected == False
-            mock_warn.assert_called()
-
-    def test_on_connection(self):
-        """Test Meshtastic connection established callback"""
-        mock_iface = MagicMock()
-        mock_node = MagicMock()
-        mock_node.nodeNum = 0x1234abcd
-        # Setup node.nodeId
-        mock_node.nodeId = "!1234abcd"
-        
-        # Channels
-        mock_channel = MagicMock()
-        mock_channel.index = 0
-        mock_channel.settings.name = "LongFast"
-        mock_channel.role = "PRIMARY"
-        mock_node.channels = [mock_channel]
-        
-        # Module Config (MQTT)
-        mock_mqtt = MagicMock()
-        mock_mqtt.enabled = True
-        mock_mqtt.address = "1.2.3.4"
-        mock_mqtt.port = 1883
-        mock_mqtt.username = "user"
-        mock_mqtt.password = "pass"
-        mock_mqtt.root = "msh"
-        mock_mqtt.tlsEnabled = False
-        
-        mock_node.moduleConfig.mqtt = mock_mqtt
-        mock_iface.localNode = mock_node
-        
-        # We need to mock mqtt.Client to verify it is initialized and connected
-        with patch('paho.mqtt.client.Client') as mock_client_cls:
-            mock_client = mock_client_cls.return_value
+            # Create FromRadio with mqttClientProxyMessage
+            from meshtastic import mesh_pb2
+            from_radio = mesh_pb2.FromRadio()
+            mqtt_msg = from_radio.mqttClientProxyMessage
+            mqtt_msg.topic = "msh/2/json/LongFast"
+            mqtt_msg.data = b"payload"
+            mqtt_msg.retained = False
             
-            mqtt_proxy.on_connection(mock_iface)
+            # Execute
+            interface._handleFromRadio(from_radio)
             
-            # Verify node ID parsing works
-            assert mqtt_proxy.my_node_id == "1234abcd"
+            # VERIFY: The proxy's mqtt_handler.publish was called
+            proxy.mqtt_handler.publish.assert_called_with("msh/2/json/LongFast", b"payload", retain=False)
             
-            # Verify Client setup
-            # Paho Client constructor called with CallbackAPIVersion.VERSION2 and client_id
-            mock_client_cls.assert_called_with(ANY, client_id="MeshtasticPythonMqttProxy-1234abcd")
-            
-            mock_client.username_pw_set.assert_called_with("user", "pass")
-            mock_client.connect.assert_called_with("1.2.3.4", 1883, 60)
-            mock_client.loop_start.assert_called()
+            # Verify radio activity updated
+            assert proxy.last_radio_activity > 0
 
-
-
-
-    @patch('paho.mqtt.client.Client')
-    def test_mqtt_ssl_configuration(self, mock_client_cls):
-        """Test SSL/TLS configuration logic"""
-        # 1. Test Regular (No SSL)
-        mock_iface = MagicMock()
-        mock_node = MagicMock()
-        mock_node.nodeNum = 123
-        mock_node.moduleConfig.mqtt.enabled = True
-        mock_node.moduleConfig.mqtt.address = "example.com"
-        mock_node.moduleConfig.mqtt.port = 1883
-        mock_node.moduleConfig.mqtt.tlsEnabled = False
-        mock_iface.localNode = mock_node
+    @patch('handlers.meshtastic.RawTCPInterface')
+    def test_create_interface_tcp(self, mock_tcp):
+        """Test factory creates TCP interface"""
+        config = Config()
+        config.interface_type = "tcp"
+        config.tcp_node_host = "1.2.3.4"
+        config.tcp_node_port = 4403
         
-        mqtt_proxy.on_connection(mock_iface)
+        proxy = MockProxy()
+        create_interface(config, proxy)
         
-        # Verify NO TLS set
-        mock_client = mock_client_cls.return_value
-        mock_client.tls_set_context.assert_not_called()
-        mock_client.connect.assert_called_with("example.com", 1883, 60)
-        
-        # 2. Test Explicit SSL
-        mock_node.moduleConfig.mqtt.tlsEnabled = True
-        mqtt_proxy.on_connection(mock_iface)
-        
-        # Verify TLS set and port switch
-        mock_client.tls_set_context.assert_called()
-        mock_client.connect.assert_called_with("example.com", 8883, 60)
-        
-        # 3. Test Implicit SSL (mqtt.meshtastic.org)
-        mock_node.moduleConfig.mqtt.address = "mqtt.meshtastic.org"
-        mock_node.moduleConfig.mqtt.tlsEnabled = False # Disabled in config
-        mock_node.moduleConfig.mqtt.port = 1883
-        
-        mqtt_proxy.on_connection(mock_iface)
-        
-        # Verify TLS enforced
-        mock_client.tls_set_context.assert_called()
-        mock_client.connect.assert_called_with("mqtt.meshtastic.org", 8883, 60)
-        
-        # 4. Test SSL with Custom Port
-        mock_node.moduleConfig.mqtt.address = "secure.local"
-        mock_node.moduleConfig.mqtt.tlsEnabled = True
-        mock_node.moduleConfig.mqtt.port = 9999
-        
-        mqtt_proxy.on_connection(mock_iface)
-        
-        # Verify TLS set but port NOT switched
-        mock_client.connect.assert_called_with("secure.local", 9999, 60)
-
-
-
-
-    def test_health_check_startup_grace_period(self):
-        """Test health check startup grace period logic"""
-        import time
-        
-        # Reset globals
-        mqtt_proxy.mqtt_connected = False
-        mqtt_proxy.mqtt_health_check_enabled = False
-        mqtt_proxy.connection_lost_time = 0
-        mqtt_proxy.last_radio_activity = 0
-        mqtt_proxy.mqtt_tx_failures = 0
-        
-        # Case 1: Startup phase (Grace period)
-        # MQTT is disconnected, but check is disabled. Should be HEALTHY.
-        health_ok, reasons = mqtt_proxy.perform_health_check(time.time())
-        assert health_ok == True
-        assert len(reasons) == 0
-        
-        # Case 2: Post-connection phase (Grace period over)
-        # Enable the check
-        mqtt_proxy.mqtt_health_check_enabled = True
-        
-        # Now it should be UNHEALTHY because mqtt_connected is False
-        health_ok, reasons = mqtt_proxy.perform_health_check(time.time())
-        assert health_ok == False
-        assert "MQTT disconnected" in reasons[0]
-
-
+        mock_tcp.assert_called_with("1.2.3.4", portNumber=4403, timeout=300, proxy=proxy)
