@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 LN4CY
+# This software is licensed under the MIT License. See LICENSE file for details.
 import time
 import logging
 import signal
