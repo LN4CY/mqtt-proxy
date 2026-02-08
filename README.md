@@ -398,15 +398,20 @@ Contributions welcome! Please:
 
 ## License
 
-This project source code is released under the **MIT License**.
+This project's source code is released under the **MIT License**. See the [LICENSE](LICENSE) file for details.
 
-### Dependency Licenses
-Users should be aware that the Docker image built from this repository bundles several third-party dependencies, including:
+### Dependency Licenses & Distribution
+
+while the source code of this proxy is MIT licensed, it depends on third-party libraries that use different licenses:
 
 *   **[meshtastic-python](https://github.com/meshtastic/python)**: Licensed under **GPLv3**.
 *   **[paho-mqtt](https://github.com/eclipse/paho.mqtt.python)**: Licensed under **EPL-2.0 / BSD**.
 
-**Note:** Due to the inclusion of `meshtastic` (GPLv3), compiled binaries or Docker images distributed from this project are effectively subject to the terms of the GPLv3.
+> [!IMPORTANT]
+> **GPL Compatibility Note:**
+> Because the proxy imports and links with `meshtastic` (GPLv3), any distributed binary or Docker image containing these components is effectively subject to the terms of the **GPLv3**.
+>
+> If you are building upon this project and plan to distribute it, ensure you comply with the requirements of the GPLv3 for the combined work.
 
 ## Acknowledgments
 

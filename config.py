@@ -1,4 +1,6 @@
 """Configuration management for MQTT Proxy."""
+# Copyright (c) 2026 LN4CY
+# This software is licensed under the MIT License. See LICENSE file for details.
 
 import os
 import logging
