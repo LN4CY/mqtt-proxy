@@ -38,6 +38,9 @@ class Config:
         self.health_check_probe_interval = int(os.environ.get("HEALTH_CHECK_PROBE_INTERVAL", str(self.health_check_activity_timeout // 2))) 
         self.health_check_status_interval = int(os.environ.get("HEALTH_CHECK_STATUS_INTERVAL", "60"))  # 60 seconds default
         self.mqtt_reconnect_delay = int(os.environ.get("MQTT_RECONNECT_DELAY", "5"))  # 5 seconds default
+        
+        # Transmission configuration
+        self.mesh_transmit_delay = float(os.environ.get("MESH_TRANSMIT_DELAY", "0.5"))  # 0.5 seconds default delay between packets
 
 # Global instance
 cfg = Config()

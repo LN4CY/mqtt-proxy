@@ -7,6 +7,7 @@ from pubsub import pub
 from config import cfg
 from handlers.mqtt import MQTTHandler
 from handlers.meshtastic import create_interface
+from handlers.queue import MessageQueue
 
 # Configure logging
 logging.basicConfig(
@@ -25,6 +26,10 @@ class MQTTProxy:
         self.iface = None
         self.mqtt_handler = None
         
+        # Initialize Message Queue
+        # We pass a lambda to always get the current interface instance
+        self.message_queue = MessageQueue(cfg, lambda: self.iface)
+        
         # State
         self.last_radio_activity = 0
         self.connection_lost_time = 0
@@ -34,6 +39,9 @@ class MQTTProxy:
     def start(self):
         logger.info("MQTT Proxy starting (interface: %s)...", cfg.interface_type.upper())
         
+        # Start the message queue
+        self.message_queue.start()
+
         # Subscribe to events
         pub.subscribe(self.on_connection, "meshtastic.connection.established")
         pub.subscribe(self.on_connection_lost, "meshtastic.connection.lost")
@@ -128,26 +136,8 @@ class MQTTProxy:
 
     def on_mqtt_message_to_radio(self, topic, payload, retained):
         """Callback from MQTT Handler to send message to Radio."""
-        if not self.iface:
-            logger.warning("Ignoring MQTT message: Interface not ready yet.")
-            return
-
-        try:
-            # Construct Protobuf
-            from meshtastic import mesh_pb2
-            
-            mqtt_proxy_msg = mesh_pb2.MqttClientProxyMessage()
-            mqtt_proxy_msg.topic = topic
-            mqtt_proxy_msg.data = payload
-            mqtt_proxy_msg.retained = retained
-            
-            to_radio = mesh_pb2.ToRadio()
-            to_radio.mqttClientProxyMessage.CopyFrom(mqtt_proxy_msg)
-            
-            self.iface._sendToRadioImpl(to_radio)
-            
-        except Exception as e:
-            logger.error("Error forwarding MQTT message to radio: %s", e)
+        # Queue the message instead of sending directly
+        self.message_queue.put(topic, payload, retained)
 
     def _perform_health_check(self, current_time):
         """Check system health."""
@@ -224,6 +214,8 @@ class MQTTProxy:
             try:
                 self.iface.close()
             except: pass
+        if getattr(self, 'message_queue', None):
+            self.message_queue.stop()
 
     def handle_sigint(self, sig, frame):
         logger.info("Received Ctrl+C, shutting down...")
