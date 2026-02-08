@@ -1,0 +1,42 @@
+name: Cleanup Old Images
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Run daily at midnight
+  workflow_dispatch:      # Allow manual run
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: Delete untagged images
+        uses: snok/container-retention-policy@v2
+        with:
+          image-names: mqtt-proxy
+          cut-off: 14 days ago UTC
+          account-type: personal
+          token: ${{ secrets.GITHUB_TOKEN }}
+          untagged-only: true
+
+      - name: Delete old feature branch images
+        uses: snok/container-retention-policy@v2
+        with:
+          image-names: mqtt-proxy
+          cut-off: 14 days ago UTC
+          account-type: personal
+          token: ${{ secrets.GITHUB_TOKEN }}
+          filter-tags: fix-*,feat-*,pr-*
+          keep-at-least: 3
+
+      - name: Delete old master branch images
+        uses: snok/container-retention-policy@v2
+        with:
+          image-names: mqtt-proxy
+          cut-off: 30 days ago UTC
+          account-type: personal
+          token: ${{ secrets.GITHUB_TOKEN }}
+          filter-tags: master
+          keep-at-least: 5
+
