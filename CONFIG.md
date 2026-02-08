@@ -100,6 +100,12 @@ BLE support requires custom implementation using the `bleak` library. See the [m
 | `HEALTH_CHECK_ACTIVITY_TIMEOUT` | integer | `300` | **Silence Threshold**: Time without Radio activity before probing starts (seconds). Recommended `60`. |
 | `HEALTH_CHECK_STATUS_INTERVAL` | integer | `60` | How often to log status information (seconds) |
 | `MQTT_RECONNECT_DELAY` | integer | `5` | Delay before attempting MQTT reconnection (seconds) |
+
+### Message Queue Settings
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `MESH_TRANSMIT_DELAY` | float | `0.5` | **Rate Limiting**: Delay between outgoing packets (seconds). Prevents radio congestion. |
  
 > [!IMPORTANT]
 > **New "Probe & Kill" Logic:**

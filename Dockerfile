@@ -12,7 +12,12 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy all application modules
 COPY mqtt-proxy.py .
+COPY config.py .
+COPY handlers/ ./handlers/
+
 RUN chmod +x mqtt-proxy.py
 
 CMD ["python3", "-u", "mqtt-proxy.py"]
+

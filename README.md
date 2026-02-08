@@ -4,8 +4,11 @@ A production-ready MQTT proxy for Meshtastic devices that enables bidirectional 
 
 ## Features
 
+- ✅ **Modular Architecture** - Clean separation of concerns with `config.py`, `handlers/mqtt.py`, `handlers/meshtastic.py`, and `handlers/queue.py`
 - ✅ **Multi-Interface Support** - TCP and Serial connections to Meshtastic nodes
 - ✅ **Bidirectional Forwarding** - Messages flow both ways between node and MQTT broker
+- ✅ **Message Queue** - Rate-limited transmission with configurable delay to prevent radio congestion
+- ✅ **Robust Packet Handling** - SafeInterfaceMixin prevents crashes from malformed packets
 - ✅ **mqttClientProxyMessage Protocol** - Implements Meshtastic's official proxy protocol
 - ✅ **Docker Containerized** - Easy deployment with Docker Compose
 - ✅ **Environment Configuration** - Flexible configuration via environment variables
@@ -98,6 +101,7 @@ SERIAL_PORT=/dev/ttyACM0
 | `TCP_TIMEOUT` | `300` | TCP connection timeout (seconds) |
 | `CONFIG_WAIT_TIMEOUT` | `60` | Node config wait timeout (seconds) |
 | `POLL_INTERVAL` | `1` | Config polling interval (seconds) |
+| `MESH_TRANSMIT_DELAY` | `0.5` | Delay between packets for rate limiting (seconds) |
 
 See [CONFIG.md](CONFIG.md) for detailed configuration options.
 
@@ -295,7 +299,7 @@ networks:
 
 ## Architecture
 
-The proxy uses a factory pattern to support multiple interface types:
+The proxy uses a modular architecture with clean separation of concerns:
 
 ```
 ┌─────────────┐         ┌──────────────┐         ┌─────────────┐
@@ -303,14 +307,22 @@ The proxy uses a factory pattern to support multiple interface types:
 │    Node     │         │              │         │             │
 └─────────────┘         └──────────────┘         └─────────────┘
    TCP/Serial          mqttClientProxy           MQTT Protocol
+                             │
+                    ┌────────┴────────┐
+                    │                 │
+              MessageQueue      SafeInterfaceMixin
+              (Rate Limiting)   (Crash Prevention)
 ```
 
 ### Key Components
 
-- **MQTTProxyMixin** - Common message handling logic
-- **RawTCPInterface** - TCP connection implementation
-- **RawSerialInterface** - Serial connection implementation
-- **Factory Pattern** - Dynamic interface selection
+- **`mqtt-proxy.py`** - Main orchestrator and entry point
+- **`config.py`** - Centralized configuration management
+- **`handlers/mqtt.py`** - MQTT connection and message handling
+- **`handlers/meshtastic.py`** - Meshtastic interface with SafeInterfaceMixin
+- **`handlers/queue.py`** - Message queue for rate limiting and reliability
+- **SafeInterfaceMixin** - Prevents crashes from malformed packets, detects implicit ACKs
+- **MessageQueue** - Thread-safe queue with configurable rate limiting
 
 ## How It Works
 
