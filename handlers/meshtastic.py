@@ -14,61 +14,86 @@ class MQTTProxyMixin:
     """
     Mixin class that provides common _handleFromRadio() logic for all interface types.
     This intercepts mqttClientProxyMessage from the node and publishes to MQTT.
+    Also handles "implicit ACKs" (ROUTING_APP packets) and suppresses DecodeErrors.
     """
     def _handleFromRadio(self, fromRadio):
         """
         Intersects mqttClientProxyMessage from the node and publishes to MQTT.
         """
+        decoded = None
         try:
             # Update generic radio activity timestamp for ANY received data
             # Access the proxy instance injected/attached to the interface
             if hasattr(self, 'proxy') and self.proxy:
                 self.proxy.last_radio_activity = time.time()
 
-            # Parse the bytes into a FromRadio object for our inspection
+            # 1. Parse the packet manually if it's bytes (to inspect it before the main lib potentially fails)
             if isinstance(fromRadio, bytes):
-                decoded = mesh_pb2.FromRadio()
-                decoded.ParseFromString(fromRadio)
+                try:
+                    decoded = mesh_pb2.FromRadio()
+                    decoded.ParseFromString(fromRadio)
+                except Exception as e:
+                    logger.debug(f"Failed to parse FromRadio bytes: {e}")
             else:
                 decoded = fromRadio
-            
-            # Check for mqttClientProxyMessage (node wants to publish to MQTT)
-            if decoded.HasField("mqttClientProxyMessage"):
-                mqtt_msg = decoded.mqttClientProxyMessage
-                logger.info("Node->MQTT: Topic=%s Size=%d bytes Retained=%s", 
-                           mqtt_msg.topic, len(mqtt_msg.data), mqtt_msg.retained)
+
+            if decoded:
+                # 2. Check for mqttClientProxyMessage (node wants to publish to MQTT)
+                if decoded.HasField("mqttClientProxyMessage"):
+                    mqtt_msg = decoded.mqttClientProxyMessage
+                    logger.info("Node->MQTT: Topic=%s Size=%d bytes Retained=%s", 
+                            mqtt_msg.topic, len(mqtt_msg.data), mqtt_msg.retained)
+                    
+                    if hasattr(self, 'proxy') and self.proxy and self.proxy.mqtt_handler:
+                        self.proxy.mqtt_handler.publish(mqtt_msg.topic, mqtt_msg.data, retain=mqtt_msg.retained)
                 
-                if hasattr(self, 'proxy') and self.proxy and self.proxy.mqtt_handler:
-                    self.proxy.mqtt_handler.publish(mqtt_msg.topic, mqtt_msg.data, retain=mqtt_msg.retained)
-            
-            # Also handle regular mesh packets for backward compatibility
-            elif decoded.packet and decoded.packet.to:
-                # Debug logging
-                # logger.debug("RX MeshPacket (not proxied): To=%s From=%s", decoded.packet.to, getattr(decoded.packet, "from"))
-                pub.sendMessage("proxy.receive.raw", packet=decoded.packet, interface=self)
+                # 3. Handle Implicit ACKs (ROUTING_APP errors with error_reason=NONE)
+                # This fixes the "Missing ACK" issue where the radio sends a routing packet instead of a formal ACK
+                elif decoded.packet and decoded.packet.decoded and decoded.packet.decoded.portnum == mesh_pb2.ROUTING_APP:
+                    try:
+                        p = decoded.packet
+                        # Check payload for Routing payload
+                        r = mesh_pb2.Routing()
+                        r.ParseFromString(p.decoded.payload)
+                        if r.error_reason == mesh_pb2.Routing.Error.NONE and p.decoded.request_id != 0:
+                            # This is effectively an ACK for request_id
+                            logger.debug(f"Implicit ACK detected for packetId={p.decoded.request_id} (ROUTING_APP)")
+                            # We can force an ACK event if needed, but for now we just log it.
+                            # The main lib might not interpret this as an ACK for 'sendText', 
+                            # but for custom apps this is good to know.
+                            pub.sendMessage("meshtastic.ack", packetId=p.decoded.request_id, interface=self)
+                    except Exception as e:
+                        pass
+
+                # 4. Standard Mesh Packet Logging (Debug)
+                elif decoded.packet and decoded.packet.to:
+                    # Logs generic traffic for debugging
+                    pub.sendMessage("proxy.receive.raw", packet=decoded.packet, interface=self)
 
         except Exception as e:
             # Expected protobuf parsing errors - log at debug level
             logger.debug("Error in MQTT proxy interception: %s", e)
 
-        # Always call super to let the library maintain its state
+        # 5. Safe Super Call
+        # Always call super to let the library maintain its state, but prevent crashes
         try:
             super()._handleFromRadio(fromRadio)
         except DecodeError as e:
-            logger.debug("Protobuf Decode Error (suppressed): %s", e)
+            logger.warning("Protobuf Decode Error (suppressed): %s", e)
+            # We don't re-raise, effectively swallowing the crash
         except Exception as e:
-            logger.debug("Error in StreamInterface processing: %s", e)
+            logger.error("Error in StreamInterface processing: %s", e)
 
 
 class RawTCPInterface(MQTTProxyMixin, TCPInterface):
-    """TCP interface with MQTT proxy support"""
+    """TCP interface with MQTT proxy support and safe error handling"""
     def __init__(self, *args, **kwargs):
         self.proxy = kwargs.pop('proxy', None)
         super().__init__(*args, **kwargs)
 
 
 class RawSerialInterface(MQTTProxyMixin, SerialInterface):
-    """Serial interface with MQTT proxy support"""
+    """Serial interface with MQTT proxy support and safe error handling"""
     def __init__(self, *args, **kwargs):
         self.proxy = kwargs.pop('proxy', None)
         super().__init__(*args, **kwargs)
