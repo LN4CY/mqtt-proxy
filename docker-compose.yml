@@ -28,6 +28,9 @@ services:
       # - HEALTH_CHECK_PROBE_INTERVAL=10 # Short interval for verification
       - HEALTH_CHECK_STATUS_INTERVAL=${HEALTH_CHECK_STATUS_INTERVAL:-60} # how often to log status (seconds)
 
+      # Message Queue Configuration
+      - MESH_TRANSMIT_DELAY=${MESH_TRANSMIT_DELAY:-0.5} # Delay between packets (seconds)
+
     healthcheck:
       test: [ "CMD-SHELL", "python3 -c 'import os, time; exit(0) if os.path.exists(\"/tmp/healthy\") and time.time() - os.path.getmtime(\"/tmp/healthy\") < 30 else exit(1)'" ]
       interval: 30s
@@ -35,8 +38,6 @@ services:
       retries: 3
       start_period: 60s
 
-    volumes:
-      - ./mqtt-proxy.py:/app/mqtt-proxy.py
     devices:
       # Serial devices for Meshtastic nodes (uncomment for serial interface)
       - /dev/ttyACM0:/dev/ttyACM0
