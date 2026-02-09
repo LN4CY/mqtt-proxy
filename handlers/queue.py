@@ -115,5 +115,11 @@ class MessageQueue:
         # Determine size for logging
         size = len(item['payload'])
         
-        iface._sendToRadioImpl(to_radio)
+        # Use _sendToRadio if available (thread-safe with locking), fall back to Impl
+        if hasattr(iface, "_sendToRadio"):
+             iface._sendToRadio(to_radio)
+        else:
+             logger.warning("Interface missing _sendToRadio, falling back to _sendToRadioImpl (potentially unsafe)")
+             iface._sendToRadioImpl(to_radio)
+             
         logger.debug(f"Sent to radio: {item['topic']} ({size} bytes)")

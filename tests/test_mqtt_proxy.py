@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import pytest
 from unittest.mock import MagicMock, patch, ANY
 
@@ -9,6 +10,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import Config
 from handlers.mqtt import MQTTHandler
 from handlers.meshtastic import create_interface, MQTTProxyMixin
+from handlers.queue import MessageQueue
 
 # Dummy proxy class for testing mixins
 class MockProxy:
@@ -116,3 +118,44 @@ class TestMeshtasticHandler:
         create_interface(config, proxy)
         
         mock_tcp.assert_called_with("1.2.3.4", portNumber=4403, timeout=300, proxy=proxy)
+
+class TestMessageQueue:
+    
+    def test_uses_safe_send_to_radio(self):
+        """Test that _sendToRadio is used when available"""
+        config = MagicMock()
+        config.mesh_transmit_delay = 0.01
+        
+        mock_iface = MagicMock()
+        # Mocking existence of _sendToRadio
+        mock_iface._sendToRadio = MagicMock()
+        
+        mq = MessageQueue(config, lambda: mock_iface)
+        mq.start()
+        
+        mq.put("test", b"data", False)
+        
+        time.sleep(0.1)
+        mq.stop()
+        
+        mock_iface._sendToRadio.assert_called_once()
+        mock_iface._sendToRadioImpl.assert_not_called()
+
+    def test_fallback_to_impl(self):
+        """Test fallback to _sendToRadioImpl if _sendToRadio is missing"""
+        config = MagicMock()
+        config.mesh_transmit_delay = 0.01
+        
+        mock_iface = MagicMock()
+        # Ensure _sendToRadio does NOT exist
+        del mock_iface._sendToRadio
+
+        mq = MessageQueue(config, lambda: mock_iface)
+        mq.start()
+        
+        mq.put("test", b"data", False)
+        
+        time.sleep(0.1)
+        mq.stop()
+        
+        mock_iface._sendToRadioImpl.assert_called_once()
