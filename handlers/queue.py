@@ -73,7 +73,12 @@ class MessageQueue:
 
                 # 3. Send the item
                 try:
+                    queue_duration = time.time() - item['timestamp']
+                    send_start = time.time()
                     self._send_to_radio(iface, item)
+                    send_duration = time.time() - send_start
+                    
+                    logger.info(f"Message processed. Queue wait: {queue_duration:.3f}s. Send time: {send_duration:.3f}s")
                     
                     # 4. Rate Limiting
                     time.sleep(self.config.mesh_transmit_delay)
