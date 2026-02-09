@@ -45,17 +45,17 @@ class TestMessageQueue(unittest.TestCase):
         # Wait for processing
         time.sleep(0.3)
         
-        # Verify calls
-        assert self.mock_iface._sendToRadioImpl.call_count >= 2
+        # Verify calls - we now expect _sendToRadio since it exists on the MagicMock
+        assert self.mock_iface._sendToRadio.call_count >= 2
         
         # Check args of first call
-        args, _ = self.mock_iface._sendToRadioImpl.call_args_list[0]
+        args, _ = self.mock_iface._sendToRadio.call_args_list[0]
         to_radio = args[0]
         assert to_radio.mqttClientProxyMessage.topic == "t1"
         assert to_radio.mqttClientProxyMessage.data == b"p1"
 
         # Check args of second call
-        args, _ = self.mock_iface._sendToRadioImpl.call_args_list[1]
+        args, _ = self.mock_iface._sendToRadio.call_args_list[1]
         to_radio = args[0]
         assert to_radio.mqttClientProxyMessage.topic == "t2"
         assert to_radio.mqttClientProxyMessage.data == b"p2"
@@ -72,13 +72,9 @@ class TestMessageQueue(unittest.TestCase):
         # Wait enough time for both to process
         time.sleep(0.5) 
         
-        assert self.mock_iface._sendToRadioImpl.call_count == 2
+        # Should be called 2 times
+        assert self.mock_iface._sendToRadio.call_count == 2
         
-        # We can't easily check exact timing in a unit test without flaky results,
-        # but we can verify that at least delay * (N-1) time passed?
-        # Actually logic is send -> sleep -> loop.
-        # So for 2 messages: send1 -> sleep -> send2 -> sleep.
-        # The loop runs in thread.
         pass 
 
     def test_waits_for_interface(self):
@@ -96,7 +92,7 @@ class TestMessageQueue(unittest.TestCase):
             real_sleep(0.1)
             
             # Should NOT have sent anything yet (it's waiting for interface)
-            assert self.mock_iface._sendToRadioImpl.call_count == 0
+            assert self.mock_iface._sendToRadio.call_count == 0
             
             # Now provide interface
             self.iface_provider.return_value = self.mock_iface
@@ -107,11 +103,11 @@ class TestMessageQueue(unittest.TestCase):
             # Should now send
             # We loop a bit to be sure.
             for _ in range(10):
-                if self.mock_iface._sendToRadioImpl.call_count > 0:
+                if self.mock_iface._sendToRadio.call_count > 0:
                     break
                 real_sleep(0.05)
                 
-            assert self.mock_iface._sendToRadioImpl.call_count == 1
+            assert self.mock_iface._sendToRadio.call_count == 1
 
 if __name__ == '__main__':
     unittest.main()
