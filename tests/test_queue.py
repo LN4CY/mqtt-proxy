@@ -109,5 +109,42 @@ class TestMessageQueue(unittest.TestCase):
                 
             assert self.mock_iface._sendToRadio.call_count == 1
 
+    def test_start_idempotency(self):
+        """Test calling start twice doesn't spawn two threads."""
+        self.q.start()
+        thread1 = self.q.thread
+        self.q.start()
+        thread2 = self.q.thread
+        assert thread1 == thread2
+        assert self.q.running
+
+    def test_queue_full_logging(self):
+        """Test that logging occurs when queue grows."""
+        with patch('handlers.queue.logger') as mock_logger:
+            for i in range(15):
+                self.q.put(f"t{i}", b"p", False)
+            
+            # Should verify logger.debug was called
+            # qsize > 10 check
+            mock_logger.debug.assert_called()
+            # We can check specific call if we want, but checking it's called is sufficient for coverage
+
+    def test_send_exception_handling(self):
+        """Test exception handling during send."""
+        self.q.start()
+        
+        # Mock send to raise exception
+        self.mock_iface._sendToRadio.side_effect = Exception("Radio error")
+        
+        with patch('handlers.queue.logger') as mock_logger:
+            self.q.put("t1", b"p", False)
+            
+            time.sleep(0.2)
+            
+            # Should have logged error
+            mock_logger.error.assert_called_with("Failed to send to radio: Radio error")
+            # Queue should still be running/processing
+            assert self.q.running
+
 if __name__ == '__main__':
     unittest.main()
