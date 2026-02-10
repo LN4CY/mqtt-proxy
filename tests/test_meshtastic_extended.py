@@ -21,7 +21,8 @@ class ParentInterface:
     def _handleFromRadio(self, fr):
         pass
 
-class TestInterface(MQTTProxyMixin, ParentInterface):
+class MixinTestHelper(MQTTProxyMixin, ParentInterface):
+    """Helper class for testing MQTTProxyMixin. Not a test class itself."""
     def __init__(self, proxy=None):
         self.proxy = proxy
         self.last_radio_activity = 0
@@ -29,7 +30,7 @@ class TestInterface(MQTTProxyMixin, ParentInterface):
 
 def test_handle_from_radio_bytes():
     proxy = MockProxy()
-    mixin = TestInterface(proxy)
+    mixin = MixinTestHelper(proxy)
     
     # Create FromRadio bytes with mqttClientProxyMessage
     from_radio = mesh_pb2.FromRadio()
@@ -45,13 +46,13 @@ def test_handle_from_radio_bytes():
     assert proxy.last_radio_activity > 0
 
 def test_handle_from_radio_malformed_bytes():
-    mixin = TestInterface(None)
+    mixin = MixinTestHelper(None)
     # Should not crash
     MQTTProxyMixin._handleFromRadio(mixin, b"invalid garbage")
 
 def test_implicit_ack_detection():
     proxy = MockProxy()
-    mixin = TestInterface(proxy)
+    mixin = MixinTestHelper(proxy)
     
     from_radio = mesh_pb2.FromRadio()
     packet = from_radio.packet
@@ -71,7 +72,7 @@ def test_implicit_ack_detection():
         mock_pub.assert_any_call("meshtastic.ack", packetId=999, interface=ANY)
 
 def test_handle_from_radio_super_crash_handling():
-    mixin = TestInterface(None)
+    mixin = MixinTestHelper(None)
     
     # Simulate super() throwing DecodeError
     class Parent:
