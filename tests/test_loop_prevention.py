@@ -1,7 +1,13 @@
 """Test Loop Prevention logic."""
+import os
+import sys
 import time
 import pytest
 from unittest.mock import MagicMock, patch
+
+# Add parent directory to path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from handlers.node_tracker import PacketDeduplicator
 from handlers.mqtt import MQTTHandler
 from meshtastic import mesh_pb2

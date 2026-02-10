@@ -1,5 +1,11 @@
+import os
+import sys
 import pytest
 from unittest.mock import MagicMock, patch
+
+# Add parent directory to path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from handlers.mqtt import MQTTHandler
 from meshtastic import mesh_pb2
 from meshtastic.protobuf import mqtt_pb2
