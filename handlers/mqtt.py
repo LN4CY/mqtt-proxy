@@ -212,6 +212,12 @@ class MQTTHandler:
             except Exception as e:
                 logger.debug(f"Error checking loop tracker: {e}")
              
+            # Skip retained messages by default - they're historical state, not new mesh traffic
+            # This prevents startup floods when connecting to broker with many retained messages
+            if message.retain and not (self.config and getattr(self.config, 'mqtt_forward_retained', False)):
+                logger.debug(f"Skipping retained MQTT message: {message.topic}")
+                return
+              
             self.last_activity = time.time()
             self.rx_count += 1
             

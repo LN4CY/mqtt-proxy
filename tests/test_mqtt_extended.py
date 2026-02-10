@@ -128,6 +128,7 @@ def test_mqtt_on_message_mesh_packet_fallback():
     msg = MagicMock()
     msg.topic = "msh/2/e/LongFast/!12345678"
     msg.payload = packet.SerializeToString()
+    msg.retain = False  # Not a retained message
     
     handler._on_message(None, None, msg)
     callback.assert_called_once()
