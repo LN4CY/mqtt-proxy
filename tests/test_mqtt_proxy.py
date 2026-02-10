@@ -17,6 +17,7 @@ class MockProxy:
     def __init__(self):
         self.mqtt_handler = MagicMock()
         self.last_radio_activity = 0
+        self.deduplicator = MagicMock()
 
 class TestMQTTHandler:
     

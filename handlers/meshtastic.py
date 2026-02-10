@@ -47,6 +47,30 @@ class MQTTProxyMixin:
                             mqtt_msg.topic, len(mqtt_msg.data), mqtt_msg.retained)
                     
                     if hasattr(self, 'proxy') and self.proxy and self.proxy.mqtt_handler:
+                        # Mark this sender as "seen" to prevent loops if we subscribe to this topic
+                        try:
+                            # Extract sender from packet if available
+                            sender_id = None
+                            packet_id = None
+                            
+                            if decoded.packet:
+                                if decoded.packet.fromId:
+                                    sender_id = decoded.packet.fromId
+                                else:
+                                    try:
+                                        sender_val = getattr(decoded.packet, "from")
+                                        sender_id = f"{sender_val:08x}"
+                                    except:
+                                        pass
+                                
+                                if decoded.packet.id:
+                                    packet_id = decoded.packet.id
+                            
+                            if sender_id and packet_id and hasattr(self.proxy, 'deduplicator') and self.proxy.deduplicator:
+                                self.proxy.deduplicator.mark_seen(sender_id, packet_id)
+                        except Exception as e:
+                            logger.warning(f"Failed to track node/packet: {e}")
+
                         self.proxy.mqtt_handler.publish(mqtt_msg.topic, mqtt_msg.data, retain=mqtt_msg.retained)
                 
                 # 3. Handle Implicit ACKs (ROUTING_APP errors with error_reason=NONE)
@@ -121,3 +145,4 @@ def create_interface(config, proxy_instance):
         )
     else:
         raise ValueError(f"Unknown interface type: {config.interface_type}")
+

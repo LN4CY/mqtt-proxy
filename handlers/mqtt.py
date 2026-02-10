@@ -7,15 +7,17 @@ import logging
 import ssl
 import paho.mqtt.client as mqtt
 from meshtastic import mesh_pb2
+from meshtastic.protobuf import mqtt_pb2
 
 logger = logging.getLogger("mqtt-proxy.handlers.mqtt")
 
 class MQTTHandler:
     """Handles MQTT connection and message processing."""
 
-    def __init__(self, config, node_id, on_message_callback=None):
+    def __init__(self, config, node_id, on_message_callback=None, deduplicator=None):
         self.config = config
         self.node_id = node_id
+        self.deduplicator = deduplicator
         self.client = None
         self.connected = False
         self.health_check_enabled = False
@@ -168,6 +170,47 @@ class MQTTHandler:
             if self.node_id and message.topic.endswith(f"!{self.node_id}"):
                  logger.debug("Ignoring own MQTT message (Loop protection): %s", message.topic)
                  return
+
+            # Enhanced Loop Protection: Check for duplicate Packet ID from same Sender
+            # We must decode the payload to get the Packet ID.
+            # MQTT messages are usually wrapped in ServiceEnvelope (protobuf)
+            try:
+                sender_node_id = None
+                packet_id = None
+                
+                # Attempt to parse as ServiceEnvelope
+                try:
+                    envelope = mqtt_pb2.ServiceEnvelope()
+                    envelope.ParseFromString(message.payload)
+                    packet = envelope.packet
+                    
+                    sender_val = getattr(packet, "from")
+                    if sender_val:
+                         sender_node_id = f"{sender_val:08x}"
+                    
+                    if packet.id:
+                         packet_id = packet.id
+                except Exception:
+                    # Fallback? Maybe it's a raw MeshPacket?
+                    try:
+                        packet = mesh_pb2.MeshPacket()
+                        packet.ParseFromString(message.payload)
+                        sender_val = getattr(packet, "from")
+                        if sender_val:
+                             sender_node_id = f"{sender_val:08x}"
+                        
+                        if packet.id:
+                             packet_id = packet.id
+                    except:
+                        pass
+                
+                if self.deduplicator and sender_node_id and packet_id:
+                     if self.deduplicator.is_duplicate(sender_node_id, packet_id):
+                         logger.info(f"Ignoring duplicate MQTT message from {sender_node_id} (PacketId={packet_id}) (Loop Prevention)")
+                         return
+
+            except Exception as e:
+                logger.debug(f"Error checking loop tracker: {e}")
              
             self.last_activity = time.time()
             self.rx_count += 1
