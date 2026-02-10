@@ -9,6 +9,7 @@ from pubsub import pub
 from config import cfg
 from handlers.mqtt import MQTTHandler
 from handlers.meshtastic import create_interface
+from handlers.node_tracker import PacketDeduplicator
 from handlers.queue import MessageQueue
 
 # Configure logging
@@ -27,6 +28,9 @@ class MQTTProxy:
         self.running = True
         self.iface = None
         self.mqtt_handler = None
+        
+        # Initialize Packet Deduplicator (Loop Prevention)
+        self.deduplicator = PacketDeduplicator()
         
         # Initialize Message Queue
         # We pass a lambda to always get the current interface instance
@@ -120,7 +124,7 @@ class MQTTProxy:
 
         # Initialize MQTT
         if node.moduleConfig and node.moduleConfig.mqtt:
-            self.mqtt_handler = MQTTHandler(cfg, node_id, self.on_mqtt_message_to_radio)
+            self.mqtt_handler = MQTTHandler(cfg, node_id, self.on_mqtt_message_to_radio, deduplicator=self.deduplicator)
             self.mqtt_handler.configure(node.moduleConfig.mqtt)
             self.mqtt_handler.start()
         else:

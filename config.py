@@ -42,7 +42,13 @@ class Config:
         self.mqtt_reconnect_delay = int(os.environ.get("MQTT_RECONNECT_DELAY", "5"))  # 5 seconds default
         
         # Transmission configuration
-        self.mesh_transmit_delay = float(os.environ.get("MESH_TRANSMIT_DELAY", "0.5"))  # 0.5 seconds default delay between packets
+        # Delay between consecutive messages sent to radio to prevent mesh network flooding
+        # Typical transmission time is ~1ms, so 10ms provides a safe margin while maintaining responsiveness
+        self.mesh_transmit_delay = float(os.environ.get("MESH_TRANSMIT_DELAY", "0.01"))  # 10ms default delay between packets
+        
+        # MQTT retained message handling
+        # By default, skip retained messages to prevent startup floods with historical data
+        self.mqtt_forward_retained = os.environ.get("MQTT_FORWARD_RETAINED", "false").lower() == "true"
 
 # Global instance
 cfg = Config()

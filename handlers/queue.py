@@ -73,7 +73,13 @@ class MessageQueue:
 
                 # 3. Send the item
                 try:
+                    queue_duration = time.time() - item['timestamp']
+                    send_start = time.time()
                     self._send_to_radio(iface, item)
+                    send_duration = time.time() - send_start
+                    
+                    queue_size = self.queue.qsize()
+                    logger.info(f"Message processed. Queue: {queue_size} msgs, Wait: {queue_duration:.3f}s, Send: {send_duration:.3f}s")
                     
                     # 4. Rate Limiting
                     time.sleep(self.config.mesh_transmit_delay)
@@ -115,5 +121,11 @@ class MessageQueue:
         # Determine size for logging
         size = len(item['payload'])
         
-        iface._sendToRadioImpl(to_radio)
+        # Use _sendToRadio if available (thread-safe with locking), fall back to Impl
+        if hasattr(iface, "_sendToRadio"):
+             iface._sendToRadio(to_radio)
+        else:
+             logger.warning("Interface missing _sendToRadio, falling back to _sendToRadioImpl (potentially unsafe)")
+             iface._sendToRadioImpl(to_radio)
+             
         logger.debug(f"Sent to radio: {item['topic']} ({size} bytes)")
