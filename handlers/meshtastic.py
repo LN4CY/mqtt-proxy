@@ -8,6 +8,7 @@ from pubsub import pub
 from meshtastic import mesh_pb2
 from meshtastic.tcp_interface import TCPInterface
 from meshtastic.serial_interface import SerialInterface
+from meshtastic.protobuf import portnums_pb2
 from google.protobuf.message import DecodeError
 
 logger = logging.getLogger("mqtt-proxy.handlers.meshtastic")
@@ -75,7 +76,7 @@ class MQTTProxyMixin:
                 
                 # 3. Handle Implicit ACKs (ROUTING_APP errors with error_reason=NONE)
                 # This fixes the "Missing ACK" issue where the radio sends a routing packet instead of a formal ACK
-                elif decoded.packet and decoded.packet.decoded and decoded.packet.decoded.portnum == mesh_pb2.ROUTING_APP:
+                elif decoded.packet and decoded.packet.decoded and decoded.packet.decoded.portnum == portnums_pb2.ROUTING_APP:
                     try:
                         p = decoded.packet
                         # Check payload for Routing payload
