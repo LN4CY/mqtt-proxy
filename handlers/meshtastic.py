@@ -55,14 +55,12 @@ class MQTTProxyMixin:
                             packet_id = None
                             
                             if decoded.packet:
-                                if decoded.packet.fromId:
-                                    sender_id = decoded.packet.fromId
-                                else:
-                                    try:
-                                        sender_val = getattr(decoded.packet, "from")
-                                        sender_id = f"{sender_val:08x}"
-                                    except:
-                                        pass
+                                # Extract sender from 'from' field (fromId doesn't exist in protobuf)
+                                try:
+                                    sender_val = getattr(decoded.packet, "from")
+                                    sender_id = f"{sender_val:08x}"
+                                except:
+                                    pass
                                 
                                 if decoded.packet.id:
                                     packet_id = decoded.packet.id
