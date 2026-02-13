@@ -4,6 +4,8 @@
 import time
 import logging
 import signal
+import sys
+import os
 from pubsub import pub
 
 from config import cfg
@@ -66,6 +68,9 @@ class MQTTProxy:
                 # Wait for node configuration (connection + config packet)
                 self._wait_for_config()
                 
+                # Initialize MQTT after config is fully loaded
+                self._init_mqtt()
+                
                 logger.info("Node config fully loaded. Proxy active.")
                 
                 # Main Loop
@@ -122,13 +127,37 @@ class MQTTProxy:
 
         logger.info("Connected to node !%s", node_id)
 
-        # Initialize MQTT
+    def _init_mqtt(self):
+        """Initialize and start the MQTT handler."""
+        if not self.iface or not self.iface.localNode:
+            logger.warning("No interface or localNode for MQTT initialization")
+            return
+
+        node = self.iface.localNode
+        
+        # Determine Node ID
+        try:
+            if hasattr(node, "nodeId"):
+                node_id = node.nodeId.replace('!', '')
+            else:
+                node_id = "{:08x}".format(node.nodeNum)
+        except Exception:
+            node_id = "unknown"
+
+        # Cleanup existing handler if any
+        if self.mqtt_handler:
+            logger.info("Stopping old MQTT handler before restart...")
+            self.mqtt_handler.stop()
+            self.mqtt_handler = None
+
+        # Initialize MQTT if config exists
         if node.moduleConfig and node.moduleConfig.mqtt:
+            logger.info("Initializing MQTT Handler for node !%s...", node_id)
             self.mqtt_handler = MQTTHandler(cfg, node_id, self.on_mqtt_message_to_radio, deduplicator=self.deduplicator)
             self.mqtt_handler.configure(node.moduleConfig.mqtt)
             self.mqtt_handler.start()
         else:
-            logger.warning("No MQTT configuration found on node!")
+            logger.warning("No MQTT configuration found on node !%s!", node_id)
 
     def on_connection_lost(self, interface, **kwargs):
         """Callback when connection to radio is lost."""
@@ -151,15 +180,26 @@ class MQTTProxy:
         reasons = []
 
         # 1. MQTT Check
-        if self.mqtt_handler and self.mqtt_handler.health_check_enabled and not self.mqtt_handler.connected:
-            health_ok = False
-            reasons.append("MQTT disconnected")
+        if self.mqtt_handler:
+            if self.mqtt_handler.health_check_enabled and not self.mqtt_handler.connected:
+                health_ok = False
+                reasons.append("MQTT disconnected")
+            
+            # 4. MQTT TX Failures (Ensure we use integers for comparison)
+            tx_fails = getattr(self.mqtt_handler, 'tx_failures', 0)
+            if isinstance(tx_fails, (int, float)) and tx_fails > 5:
+                health_ok = False
+                reasons.append(f"Recurring MQTT Publish Failures ({tx_fails})")
+        elif self.iface and self.iface.localNode and self.iface.localNode.moduleConfig:
+            # We have config but no handler? 
+            if self.iface.localNode.moduleConfig.mqtt and getattr(self.iface.localNode.moduleConfig.mqtt, 'enabled', False):
+                 health_ok = False
+                 reasons.append("MQTT handler uninitialized")
 
         # 2. Connection Lost Watchdog
         if self.connection_lost_time > 0:
             if current_time - self.connection_lost_time > 60:
                 logger.error("Connection LOST for >60s. Forcing restart...")
-                import sys
                 sys.exit(1)
 
         # 3. Radio Watchdog
@@ -180,27 +220,27 @@ class MQTTProxy:
                      health_ok = False
                      reasons.append(f"Radio silent (Probed {int(time_since_probe)}s ago - NO REPLY)")
 
-        # 4. MQTT TX Failures
-        if self.mqtt_handler and self.mqtt_handler.tx_failures > 5:
-            health_ok = False
-            reasons.append(f"Recurring MQTT Publish Failures ({self.mqtt_handler.tx_failures})")
-
         return health_ok, reasons
 
     def _log_status(self, current_time):
         if current_time - self.last_status_log_time > cfg.health_check_status_interval:
             time_since_radio = current_time - self.last_radio_activity if self.last_radio_activity > 0 else -1
-            mqtt_active = self.mqtt_handler.last_activity if self.mqtt_handler else 0
-            time_since_mqtt = current_time - mqtt_active if mqtt_active > 0 else -1
+            
+            mqtt_connected = False
+            time_since_mqtt = -1
+            if self.mqtt_handler:
+                mqtt_connected = getattr(self.mqtt_handler, 'connected', False)
+                mqtt_active = getattr(self.mqtt_handler, 'last_activity', 0)
+                if isinstance(mqtt_active, (int, float)) and mqtt_active > 0:
+                    time_since_mqtt = current_time - mqtt_active
             
             logger.info("=== MQTT Proxy Status ===")
-            logger.info("  MQTT Connected: %s", self.mqtt_handler.connected if self.mqtt_handler else False)
+            logger.info("  MQTT Connected: %s", mqtt_connected)
             logger.info("  Radio Activity: %s ago", f"{int(time_since_radio)}s" if time_since_radio >= 0 else "never")
             logger.info("  MQTT Activity:  %s ago", f"{int(time_since_mqtt)}s" if time_since_mqtt >= 0 else "never")
             self.last_status_log_time = current_time
 
     def _update_heartbeat(self, current_time, health_ok, reasons):
-        import os
         try:
             if health_ok:
                 with open("/tmp/healthy", "w") as f:
