@@ -15,7 +15,7 @@ jobs:
         uses: snok/container-retention-policy@v3.0.0
         with:
           image-names: mqtt-proxy
-          cut-off: 14 days ago UTC
+          cut-off: 14d
           account: user
           token: ${{ secrets.GITHUB_TOKEN }}
           tag-selection: untagged
@@ -24,7 +24,7 @@ jobs:
         uses: snok/container-retention-policy@v3.0.0
         with:
           image-names: mqtt-proxy
-          cut-off: 14 days ago UTC
+          cut-off: 14d
           account: user
           token: ${{ secrets.GITHUB_TOKEN }}
           image-tags: fix-*,feat-*,pr-*
@@ -34,7 +34,7 @@ jobs:
         uses: snok/container-retention-policy@v3.0.0
         with:
           image-names: mqtt-proxy
-          cut-off: 30 days ago UTC
+          cut-off: 30d
           account: user
           token: ${{ secrets.GITHUB_TOKEN }}
           image-tags: master
