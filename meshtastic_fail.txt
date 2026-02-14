@@ -1,0 +1,95 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.2, pytest-7.4.3, pluggy-1.6.0 -- C:\Users\dremb\AppData\Local\Python\pythoncore-3.14-64\python.exe
+cachedir: .pytest_cache
+rootdir: E:\proj\AiAssited\mqtt-proxy
+plugins: anyio-3.7.1, cov-4.1.0
+collecting ... collected 6 items
+
+tests/test_meshtastic_extended.py::test_handle_from_radio_bytes FAILED   [ 16%]
+tests/test_meshtastic_extended.py::test_handle_from_radio_malformed_bytes PASSED [ 33%]
+tests/test_meshtastic_extended.py::test_implicit_ack_detection FAILED    [ 50%]
+tests/test_meshtastic_extended.py::test_handle_from_radio_super_crash_handling PASSED [ 66%]
+tests/test_meshtastic_extended.py::test_create_interface_serial PASSED   [ 83%]
+tests/test_meshtastic_extended.py::test_create_interface_invalid PASSED  [100%]
+
+================================== FAILURES ===================================
+________________________ test_handle_from_radio_bytes _________________________
+
+    def test_handle_from_radio_bytes():
+        proxy = MockProxy()
+        mixin = TestInterface(proxy)
+    
+        # Create FromRadio bytes
+        from_radio = mesh_pb2.FromRadio()
+        from_radio.mqttClientProxyMessage.topic = "test"
+        from_radio.mqttClientProxyMessage.data = b"abc"
+        from_radio_bytes = from_radio.SerializeToString()
+    
+        # Patch super()._handleFromRadio to avoid AttributeError since TestInterface doesn't have a real parent
+        with patch('handlers.meshtastic.MQTTProxyMixin._handleFromRadio') as _ :
+            # We call the mixin method directly to test its logic
+            MQTTProxyMixin._handleFromRadio(mixin, from_radio_bytes)
+    
+>       proxy.mqtt_handler.publish.assert_called_with("test", b"abc", retain=False)
+
+tests\test_meshtastic_extended.py:38: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <MagicMock name='mock.publish' id='1580463631936'>
+args = ('test', b'abc'), kwargs = {'retain': False}
+expected = "publish('test', b'abc', retain=False)", actual = 'not called.'
+error_message = "expected call not found.\nExpected: publish('test', b'abc', retain=False)\n  Actual: not called."
+
+    def assert_called_with(self, /, *args, **kwargs):
+        """assert that the last call was made with the specified arguments.
+    
+        Raises an AssertionError if the args and keyword args passed in are
+        different to the last call to the mock."""
+        if self.call_args is None:
+            expected = self._format_mock_call_signature(args, kwargs)
+            actual = 'not called.'
+            error_message = ('expected call not found.\nExpected: %s\n  Actual: %s'
+                    % (expected, actual))
+>           raise AssertionError(error_message)
+E           AssertionError: expected call not found.
+E           Expected: publish('test', b'abc', retain=False)
+E             Actual: not called.
+
+C:\Users\dremb\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:976: AssertionError
+_________________________ test_implicit_ack_detection _________________________
+
+    def test_implicit_ack_detection():
+        proxy = MockProxy()
+        mixin = TestInterface(proxy)
+    
+        from_radio = mesh_pb2.FromRadio()
+        packet = from_radio.packet
+        packet.decoded.portnum = portnums_pb2.ROUTING_APP
+        packet.decoded.request_id = 999
+    
+        routing = mesh_pb2.Routing()
+        routing.error_reason = mesh_pb2.Routing.Error.NONE
+        packet.decoded.payload = routing.SerializeToString()
+    
+        with patch('pubsub.pub.sendMessage') as mock_pub:
+            # DO NOT patch the method we are calling
+            MQTTProxyMixin._handleFromRadio(mixin, from_radio)
+    
+            # Check if meshtastic.ack was sent
+            # We use ANY for interface to avoid mismatch in mock objects vs 'mixin'
+>           mock_pub.assert_any_call("meshtastic.ack", packetId=999, interface=ANY)
+E           NameError: name 'ANY' is not defined
+
+tests\test_meshtastic_extended.py:65: NameError
+------------------------------ Captured log call ------------------------------
+ERROR    mqtt-proxy.handlers.meshtastic:meshtastic.py:112 Error in StreamInterface processing: 'super' object has no attribute '_handleFromRadio'
+============================== warnings summary ===============================
+tests\test_meshtastic_extended.py:14
+  E:\proj\AiAssited\mqtt-proxy\tests\test_meshtastic_extended.py:14: PytestCollectionWarning: cannot collect test class 'TestInterface' because it has a __init__ constructor (from: tests/test_meshtastic_extended.py)
+    class TestInterface(MQTTProxyMixin):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_meshtastic_extended.py::test_handle_from_radio_bytes - Asse...
+FAILED tests/test_meshtastic_extended.py::test_implicit_ack_detection - NameE...
+=================== 2 failed, 4 passed, 1 warning in 0.33s ====================

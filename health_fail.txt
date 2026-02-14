@@ -1,0 +1,189 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.2, pytest-7.4.3, pluggy-1.6.0 -- C:\Users\dremb\AppData\Local\Python\pythoncore-3.14-64\python.exe
+cachedir: .pytest_cache
+rootdir: E:\proj\AiAssited\mqtt-proxy
+plugins: anyio-3.7.1, cov-4.1.0
+collecting ... collected 7 items
+
+tests/test_proxy_health.py::test_proxy_init PASSED                       [ 14%]
+tests/test_proxy_health.py::test_on_connection_edge_cases FAILED         [ 28%]
+tests/test_proxy_health.py::test_on_connection_lost_debounce PASSED      [ 42%]
+tests/test_proxy_health.py::test_health_check_logic FAILED               [ 57%]
+tests/test_proxy_health.py::test_log_status FAILED                       [ 71%]
+tests/test_proxy_health.py::test_update_heartbeat FAILED                 [ 85%]
+tests/test_proxy_health.py::test_cleanup PASSED                          [100%]
+
+================================== FAILURES ===================================
+________________________ test_on_connection_edge_cases ________________________
+
+    def test_on_connection_edge_cases():
+        proxy = MQTTProxy()
+    
+        # CASE: No localNode
+        iface = MagicMock()
+        iface.localNode = None
+        proxy.on_connection(iface)
+        assert proxy.last_radio_activity == 0
+    
+        # CASE: Exception in node ID
+        node = MagicMock()
+        iface.localNode = node
+        type(node).nodeNum = property(lambda x: 1/0) # Trigger exception
+        proxy.on_connection(iface)
+        # Should handle gracefully
+    
+        # CASE: No MQTT config
+        node = MagicMock()
+        iface.localNode = node
+        node.nodeNum = 12345
+        # Ensure moduleConfig exists but .mqtt is explicitly Falsey
+        node.moduleConfig = MagicMock()
+        node.moduleConfig.mqtt = None
+    
+        proxy.on_connection(iface)
+>       assert proxy.mqtt_handler is None
+E       assert <handlers.mqtt.MQTTHandler object at 0x000001C7B5E66510> is None
+E        +  where <handlers.mqtt.MQTTHandler object at 0x000001C7B5E66510> = <mqtt_proxy_test.MQTTProxy object at 0x000001C7B56E4550>.mqtt_handler
+
+tests\test_proxy_health.py:55: AssertionError
+------------------------------ Captured log call ------------------------------
+WARNING  mqtt-proxy:mqtt-proxy.py:107 No localNode available
+ERROR    mqtt-proxy.handlers.mqtt:mqtt.py:108 Failed to connect to MQTT broker: Invalid host.
+WARNING  mqtt-proxy:mqtt-proxy.py:131 No MQTT configuration found on node!
+___________________________ test_health_check_logic ___________________________
+
+    def test_health_check_logic():
+        proxy = MQTTProxy()
+        proxy.connection_lost_time = 0
+        proxy.last_radio_activity = time.time() # Ensure it's not silent
+    
+        # 1. OK State
+        ok, reasons = proxy._perform_health_check(time.time())
+        assert ok == True
+    
+        # 2. MQTT Disconnected
+        proxy.mqtt_handler = MagicMock()
+        proxy.mqtt_handler.health_check_enabled = True
+        proxy.mqtt_handler.connected = False
+>       ok, reasons = proxy._perform_health_check(time.time())
+
+tests\test_proxy_health.py:80: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <mqtt_proxy_test.MQTTProxy object at 0x000001C7B5DFF230>
+current_time = 1770686450.8345113
+
+    def _perform_health_check(self, current_time):
+        """Check system health."""
+        health_ok = True
+        reasons = []
+    
+        # 1. MQTT Check
+        if self.mqtt_handler and self.mqtt_handler.health_check_enabled and not self.mqtt_handler.connected:
+            health_ok = False
+            reasons.append("MQTT disconnected")
+    
+        # 2. Connection Lost Watchdog
+        if self.connection_lost_time > 0:
+            if current_time - self.connection_lost_time > 60:
+                logger.error("Connection LOST for >60s. Forcing restart...")
+                import sys
+                sys.exit(1)
+    
+        # 3. Radio Watchdog
+        if self.last_radio_activity > 0:
+            time_since_radio = current_time - self.last_radio_activity
+            if time_since_radio > cfg.health_check_activity_timeout:
+                # Silence...
+                time_since_probe = current_time - self.last_probe_time
+                if time_since_probe > 40:
+                    logger.warning(f"Radio silent for {int(time_since_radio)}s. Sending active probe...")
+                    try:
+                        self.last_probe_time = current_time
+                        if self.iface:
+                             self.iface.sendPosition()
+                    except Exception as e:
+                        logger.warning("Failed to probe: %s", e)
+                elif time_since_probe > 30:
+                     health_ok = False
+                     reasons.append(f"Radio silent (Probed {int(time_since_probe)}s ago - NO REPLY)")
+    
+        # 4. MQTT TX Failures
+>       if self.mqtt_handler and self.mqtt_handler.tx_failures > 5:
+E       TypeError: '>' not supported between instances of 'MagicMock' and 'int'
+
+mqtt-proxy.py:184: TypeError
+_______________________________ test_log_status _______________________________
+
+    def test_log_status():
+        proxy = MQTTProxy()
+        proxy.mqtt_handler = MagicMock()
+        proxy.mqtt_handler.connected = True
+        proxy.last_radio_activity = time.time() - 10
+    
+        # Should not log if interval not reached
+>       proxy._log_status(time.time())
+
+tests\test_proxy_health.py:117: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <mqtt_proxy_test.MQTTProxy object at 0x000001C7B5EB48A0>
+current_time = 1770686450.842585
+
+    def _log_status(self, current_time):
+        if current_time - self.last_status_log_time > cfg.health_check_status_interval:
+            time_since_radio = current_time - self.last_radio_activity if self.last_radio_activity > 0 else -1
+            mqtt_active = self.mqtt_handler.last_activity if self.mqtt_handler else 0
+>           time_since_mqtt = current_time - mqtt_active if mqtt_active > 0 else -1
+E           TypeError: '>' not supported between instances of 'MagicMock' and 'int'
+
+mqtt-proxy.py:194: TypeError
+____________________________ test_update_heartbeat ____________________________
+
+    def test_update_heartbeat():
+        proxy = MQTTProxy()
+    
+        # CASE: Healthy
+        with patch("builtins.open", mock_open()) as mocked_file:
+            proxy._update_heartbeat(time.time(), True, [])
+            mocked_file.assert_called_with("/tmp/healthy", "w")
+    
+        # CASE: Unhealthy (should exit)
+        with patch("sys.exit") as mock_exit:
+            with patch("os.path.exists", return_value=True):
+                with patch("os.remove") as mock_remove:
+                    proxy._update_heartbeat(time.time(), False, ["Test Reason"])
+                    mock_remove.assert_called_with("/tmp/healthy")
+>                   mock_exit.assert_called_with(1)
+
+tests\test_proxy_health.py:139: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <MagicMock name='exit' id='1957262485088'>, args = (1,), kwargs = {}
+expected = 'exit(1)', actual = 'not called.'
+error_message = 'expected call not found.\nExpected: exit(1)\n  Actual: not called.'
+
+    def assert_called_with(self, /, *args, **kwargs):
+        """assert that the last call was made with the specified arguments.
+    
+        Raises an AssertionError if the args and keyword args passed in are
+        different to the last call to the mock."""
+        if self.call_args is None:
+            expected = self._format_mock_call_signature(args, kwargs)
+            actual = 'not called.'
+            error_message = ('expected call not found.\nExpected: %s\n  Actual: %s'
+                    % (expected, actual))
+>           raise AssertionError(error_message)
+E           AssertionError: expected call not found.
+E           Expected: exit(1)
+E             Actual: not called.
+
+C:\Users\dremb\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:976: AssertionError
+------------------------------ Captured log call ------------------------------
+ERROR    mqtt-proxy:mqtt-proxy.py:211 Health check FAILED: Test Reason. Exiting...
+=========================== short test summary info ===========================
+FAILED tests/test_proxy_health.py::test_on_connection_edge_cases - assert <ha...
+FAILED tests/test_proxy_health.py::test_health_check_logic - TypeError: '>' n...
+FAILED tests/test_proxy_health.py::test_log_status - TypeError: '>' not suppo...
+FAILED tests/test_proxy_health.py::test_update_heartbeat - AssertionError: ex...
+========================= 4 failed, 3 passed in 0.43s =========================
