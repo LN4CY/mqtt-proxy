@@ -1,8 +1,11 @@
 import pytest
 import time
+import sys
 import os
 from unittest.mock import MagicMock, patch, mock_open
-import sys
+
+# Add parent directory to path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Load MQTTProxy
 import importlib.util
@@ -11,11 +14,7 @@ def load_module(name, path):
     mod = importlib.util.module_from_spec(spec)
     # Patch sys.modules before exec to avoid circular issues
     sys.modules[name] = mod
-    try:
-        spec.loader.exec_module(mod)
-    except Exception as e:
-        print(f"FAILED TO LOAD {path}: {e}")
-        # We don't re-raise to see the failure in tests later
+    spec.loader.exec_module(mod)
     return mod
 
 mqtt_proxy_mod = load_module("mqtt_proxy_test", "mqtt-proxy.py")
@@ -103,6 +102,7 @@ def test_health_check_logic():
         
     # 5. Radio Watchdog (Silent + Probe Failure)
     proxy.mqtt_handler.connected = True  # Reset to passing state first
+    proxy.mqtt_handler.tx_failures = 0
     proxy.connection_lost_time = 0.0  # Reset
     proxy.last_probe_time = now - 35.0
     with patch('mqtt_proxy_test.cfg') as mock_cfg:
@@ -112,10 +112,20 @@ def test_health_check_logic():
         assert "Radio silent" in reasons[0]
 
     # 6. MQTT TX Failures
+    proxy.last_radio_activity = now # Reset to avoid radio silent failure
     proxy.mqtt_handler.tx_failures = 10
     ok, reasons = proxy._perform_health_check(now)
     assert ok == False
-    assert "MQTT Publish Failures" in reasons[-1]
+    assert any("MQTT Publish Failures" in r for r in reasons)
+
+    # 7. Uninitialized Handler Check
+    proxy.mqtt_handler = None
+    proxy.last_radio_activity = now # Reset
+    proxy.iface = MagicMock()
+    proxy.iface.localNode.moduleConfig.mqtt.enabled = True
+    ok, reasons = proxy._perform_health_check(now)
+    assert ok == False
+    assert "MQTT handler uninitialized" in reasons
 
 def test_log_status():
     proxy = MQTTProxy()
