@@ -57,7 +57,8 @@ class MQTTProxyMixin:
                             if decoded.packet:
                                 # Extract sender from 'from' field (fromId doesn't exist in protobuf)
                                 try:
-                                    sender_val = getattr(decoded.packet, "from")
+                                    # FIX: Use 'from' (getattr handles reserved keyword conflict) and default to 0
+                                    sender_val = getattr(decoded.packet, "from", 0)
                                     sender_id = f"{sender_val:08x}"
                                 except:
                                     pass
@@ -81,12 +82,19 @@ class MQTTProxyMixin:
                         r = mesh_pb2.Routing()
                         r.ParseFromString(p.decoded.payload)
                         if r.error_reason == mesh_pb2.Routing.Error.NONE and p.decoded.request_id != 0:
-                            # This is effectively an ACK for request_id
-                            logger.debug(f"Implicit ACK detected for packetId={p.decoded.request_id} (ROUTING_APP)")
-                            # We can force an ACK event if needed, but for now we just log it.
-                            # The main lib might not interpret this as an ACK for 'sendText', 
-                            # but for custom apps this is good to know.
-                            pub.sendMessage("meshtastic.ack", packetId=p.decoded.request_id, interface=self)
+                            # FIX: Ignore local routing confirmation (sender=0) and self-echoes
+                            sender = getattr(p, "from", 0)
+                            my_id = getattr(self, "myNodeNum", None)
+                            
+                            if sender == 0 or (my_id and sender == my_id):
+                                logger.debug(f"⚡ Ignored implicit ACK for ID {p.decoded.request_id} (Source: {sender})")
+                            else:
+                                # This is effectively an ACK for request_id
+                                logger.debug(f"Implicit ACK detected for packetId={p.decoded.request_id} (ROUTING_APP)")
+                                # We can force an ACK event if needed, but for now we just log it.
+                                # The main lib might not interpret this as an ACK for 'sendText', 
+                                # but for custom apps this is good to know.
+                                pub.sendMessage("meshtastic.ack", packetId=p.decoded.request_id, interface=self)
                     except Exception as e:
                         pass
 

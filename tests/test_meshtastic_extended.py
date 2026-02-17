@@ -16,6 +16,7 @@ class MockProxy:
         self.mqtt_handler = MagicMock()
         self.last_radio_activity = 0
         self.deduplicator = MagicMock()
+        self.myNodeNum = 0x12345678
 
 class ParentInterface:
     def _handleFromRadio(self, fr):
@@ -26,6 +27,11 @@ class MixinTestHelper(MQTTProxyMixin, ParentInterface):
     def __init__(self, proxy=None):
         self.proxy = proxy
         self.last_radio_activity = 0
+        if proxy:
+            self.myNodeNum = proxy.myNodeNum
+        else:
+            self.myNodeNum = 0
+            
     # No need to override _handleFromRadio here, we want the mixin's version
 
 def test_handle_from_radio_bytes():
@@ -58,6 +64,8 @@ def test_implicit_ack_detection():
     packet = from_radio.packet
     packet.decoded.portnum = portnums_pb2.ROUTING_APP
     packet.decoded.request_id = 999
+    # Valid sender (not 0, not self)
+    setattr(packet, "from", 0x87654321)
     
     routing = mesh_pb2.Routing()
     routing.error_reason = mesh_pb2.Routing.Error.NONE
@@ -70,6 +78,46 @@ def test_implicit_ack_detection():
         # Check if meshtastic.ack was sent
         # We use ANY for interface to avoid mismatch in mock objects vs 'mixin'
         mock_pub.assert_any_call("meshtastic.ack", packetId=999, interface=ANY)
+
+def test_implicit_ack_suppression_self():
+    """Test that implicit ACK from SELF is ignored."""
+    proxy = MockProxy()
+    mixin = MixinTestHelper(proxy)
+    
+    from_radio = mesh_pb2.FromRadio()
+    packet = from_radio.packet
+    packet.decoded.portnum = portnums_pb2.ROUTING_APP
+    packet.decoded.request_id = 888
+    # Sender is SELF
+    setattr(packet, "from", proxy.myNodeNum)
+    
+    routing = mesh_pb2.Routing()
+    routing.error_reason = mesh_pb2.Routing.Error.NONE
+    packet.decoded.payload = routing.SerializeToString()
+    
+    with patch('pubsub.pub.sendMessage') as mock_pub:
+        MQTTProxyMixin._handleFromRadio(mixin, from_radio)
+        mock_pub.assert_not_called()
+
+def test_implicit_ack_suppression_sender_zero():
+    """Test that implicit ACK with sender=0 (local routing) is ignored."""
+    proxy = MockProxy()
+    mixin = MixinTestHelper(proxy)
+    
+    from_radio = mesh_pb2.FromRadio()
+    packet = from_radio.packet
+    packet.decoded.portnum = portnums_pb2.ROUTING_APP
+    packet.decoded.request_id = 777
+    # Sender is 0
+    setattr(packet, "from", 0)
+    
+    routing = mesh_pb2.Routing()
+    routing.error_reason = mesh_pb2.Routing.Error.NONE
+    packet.decoded.payload = routing.SerializeToString()
+    
+    with patch('pubsub.pub.sendMessage') as mock_pub:
+        MQTTProxyMixin._handleFromRadio(mixin, from_radio)
+        mock_pub.assert_not_called()
 
 def test_handle_from_radio_super_crash_handling():
     mixin = MixinTestHelper(None)
@@ -84,7 +132,10 @@ def test_handle_from_radio_super_crash_handling():
         
     m = Mixed()
     # Should swallow DecodeError
-    m._handleFromRadio(mesh_pb2.FromRadio())
+    try:
+        m._handleFromRadio(mesh_pb2.FromRadio())
+    except:
+        pytest.fail("Should not raise exception")
     
     # Simulate other Exception
     class ParentErr:
@@ -96,7 +147,10 @@ def test_handle_from_radio_super_crash_handling():
         
     merr = MixedErr()
     # Should log error and not crash
-    merr._handleFromRadio(mesh_pb2.FromRadio())
+    try:
+        merr._handleFromRadio(mesh_pb2.FromRadio())
+    except:
+        pytest.fail("Should not raise exception")
 
 def test_create_interface_serial():
     config = MagicMock()
