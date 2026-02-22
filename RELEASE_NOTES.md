@@ -1,3 +1,21 @@
+# Release v1.3.0
+
+## 🐛 Bug Fixes
+
+### Missed Messages (False Positive ACKs)
+- **Ignored Implicit ACKs from Self/Local**: Fixed an issue where local routing confirmation packets were incorrectly interpreted as successful delivery acknowledgments from remote nodes.
+  - The proxy now explicitly checks the `sender` of `ROUTING_APP` packets.
+  - Packets where `sender == 0` (local routing confirmation) are ignored.
+  - Packets where `sender == myNodeNum` (echoes from self) are ignored.
+  - This ensures `meshtastic.ack` events are only emitted for high-confidence confirmations, improving message reliability logic.
+
+## 🧪 Test Coverage
+- Added new unit tests in `tests/test_meshtastic_extended.py` to verify implicit ACK suppression for self and sender 0.
+
+---
+
+**Full Changelog**: https://github.com/LN4CY/mqtt-proxy/compare/v1.2.0...v1.3.0
+
 # Release v1.2.0
 
 ## 🛡️ Reliability & Stability Improvements
