@@ -1,3 +1,22 @@
+# Release v1.4.0
+
+## 🐛 Bug Fixes
+
+### "Proxy to Client" Ack Restoration (The "Red X" Fix)
+- **Implicit ACK Echoes**: Fixed a critical bug where `mqtt-proxy`'s strict loop protection dropped echoed messages from the MQTT Broker.
+  - When the Meshtastic firmware has `proxy_to_client_enabled: true` set, it stops generating automatic "Implicit ACKs" for transmissions.
+  - Instead, the firmware expects the MQTT broker to echo the message back so it knows it was successfully delivered.
+  - By bypassing the deduplicator specifically for echoed messages (where `gateway_id` matches the local node ID), the firmware now receives the delivery confirmation it needs.
+  - This prevents `MAX_RETRANSMIT` timeouts and fixes the "Red X" (Failed delivery status) issue in MeshMonitor for both DMs and Channel Broadcasts.
+
+## 📝 Documentation
+- **CONFIG.md**: Added warnings and explanations around the `proxy_to_client_enabled` setting and how it alters firmware timeout behavior.
+- **README.md**: Added "Implicit ACK Restoration" to the core features list and clarified the Architecture section's "How It Works".
+
+---
+
+**Full Changelog**: https://github.com/LN4CY/mqtt-proxy/compare/v1.3.0...v1.4.0
+
 # Release v1.3.0
 
 ## 🐛 Bug Fixes
