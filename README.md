@@ -9,6 +9,7 @@ A production-ready MQTT proxy for Meshtastic devices that enables bidirectional 
 - ✅ **Bidirectional Forwarding** - Messages flow both ways between node and MQTT broker
 - ✅ **Message Queue** - Rate-limited transmission with configurable delay to prevent radio congestion
 - ✅ **Robust Packet Handling** - SafeInterfaceMixin prevents crashes from malformed packets
+- ✅ **Implicit ACK Restoration** - Intelligently bypasses loop protection for echoed packets, restoring the firmware's missing delivery confirmations (fixing the "Red X" issue)
 - ✅ **mqttClientProxyMessage Protocol** - Implements Meshtastic's official proxy protocol
 - ✅ **Docker Containerized** - Easy deployment with Docker Compose
 - ✅ **Environment Configuration** - Flexible configuration via environment variables
@@ -328,7 +329,8 @@ The proxy uses a modular architecture with clean separation of concerns:
 
 1. **Node → MQTT**: Proxy receives `mqttClientProxyMessage` from node and publishes to MQTT broker
 2. **MQTT → Node**: Proxy subscribes to MQTT topics and forwards messages to node as `mqttClientProxyMessage`
-3. **Transparent Operation**: Node firmware handles encryption, channel mapping, and routing
+3. **Implicit ACK Handling**: The proxy detects when the MQTT broker echoes a message sent by the local node and forwards it back. This fulfills the firmware's requirement for a delivery confirmation, ensuring the node generates a local "Implicit ACK" rather than waiting 45 seconds and timing out (which causes Red X delivery failures in MeshMonitor).
+4. **Transparent Operation**: Node firmware handles encryption, channel mapping, and routing
 
 ## Requirements
 

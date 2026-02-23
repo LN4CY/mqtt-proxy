@@ -148,6 +148,10 @@ meshtastic --set mqtt.username myuser
 meshtastic --set mqtt.password mypass
 ```
 
+> [!CAUTION]
+> **Why `proxy_to_client_enabled` Matters:**
+> When the firmware has `proxy_to_client_enabled` turned on, it fundamentally changes how it confirms message delivery. It stops generating "Implicit ACKs" automatically. Instead, it relies on the MQTT Broker echoing the message back to the Proxy. If the Proxy fails to forward this echo (as was a bug in previous versions), the firmware will hit a `MAX_RETRANSMIT` timeout (approx 45 seconds). In MeshMonitor, this results in a "Red X" (Failed delivery status) for Channel Broadcasts, even if the payload successfully reached the broker!
+
 ## Docker Compose Configuration
 
 ### Basic Setup
