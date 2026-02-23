@@ -162,55 +162,65 @@ class MQTTHandler:
     def _on_message(self, client, userdata, message):
         """Handle incoming MQTT messages."""
         try:
+            # Check if this is an echo of our own message (Firmware needs this to generate Implicit ACKs)
+            is_echo = False
+            try:
+                envelope = mqtt_pb2.ServiceEnvelope()
+                envelope.ParseFromString(message.payload)
+                if envelope.gateway_id:
+                    if self.node_id and (envelope.gateway_id == self.node_id or envelope.gateway_id == f"!{self.node_id}"):
+                        is_echo = True
+            except Exception:
+                pass
+
             # Skip stat messages
             if "/stat/" in message.topic:
                 return
 
-            # Loop protection
-            if self.node_id and message.topic.endswith(f"!{self.node_id}"):
+            # Topic check loop prevention (Bypass for echoes so firmware gets its ACK)
+            if self.node_id and message.topic.endswith(f"!{self.node_id}") and not is_echo:
                  logger.debug("Ignoring own MQTT message (Loop protection): %s", message.topic)
                  return
 
             # Enhanced Loop Protection: Check for duplicate Packet ID from same Sender
-            # We must decode the payload to get the Packet ID.
-            # MQTT messages are usually wrapped in ServiceEnvelope (protobuf)
-            try:
-                sender_node_id = None
-                packet_id = None
-                
-                # Attempt to parse as ServiceEnvelope
+            if not is_echo:
                 try:
-                    envelope = mqtt_pb2.ServiceEnvelope()
-                    envelope.ParseFromString(message.payload)
-                    packet = envelope.packet
+                    sender_node_id = None
+                    packet_id = None
                     
-                    sender_val = getattr(packet, "from")
-                    if sender_val:
-                         sender_node_id = f"{sender_val:08x}"
-                    
-                    if packet.id:
-                         packet_id = packet.id
-                except Exception:
-                    # Fallback? Maybe it's a raw MeshPacket?
+                    # Attempt to parse as ServiceEnvelope
                     try:
-                        packet = mesh_pb2.MeshPacket()
-                        packet.ParseFromString(message.payload)
+                        envelope = mqtt_pb2.ServiceEnvelope()
+                        envelope.ParseFromString(message.payload)
+                        packet = envelope.packet
+                        
                         sender_val = getattr(packet, "from")
                         if sender_val:
                              sender_node_id = f"{sender_val:08x}"
                         
                         if packet.id:
                              packet_id = packet.id
-                    except:
-                        pass
-                
-                if self.deduplicator and sender_node_id and packet_id:
-                     if self.deduplicator.is_duplicate(sender_node_id, packet_id):
-                         logger.info(f"Ignoring duplicate MQTT message from {sender_node_id} (PacketId={packet_id}) (Loop Prevention)")
-                         return
+                    except Exception:
+                        # Fallback? Maybe it's a raw MeshPacket?
+                        try:
+                            packet = mesh_pb2.MeshPacket()
+                            packet.ParseFromString(message.payload)
+                            sender_val = getattr(packet, "from")
+                            if sender_val:
+                                 sender_node_id = f"{sender_val:08x}"
+                            
+                            if packet.id:
+                                 packet_id = packet.id
+                        except:
+                            pass
+                    
+                    if self.deduplicator and sender_node_id and packet_id:
+                         if self.deduplicator.is_duplicate(sender_node_id, packet_id):
+                             logger.info(f"Ignoring duplicate MQTT message from {sender_node_id} (PacketId={packet_id}) (Loop Prevention)")
+                             return
 
-            except Exception as e:
-                logger.debug(f"Error checking loop tracker: {e}")
+                except Exception as e:
+                    logger.debug(f"Error checking loop tracker: {e}")
              
             # Skip retained messages by default - they're historical state, not new mesh traffic
             # This prevents startup floods when connecting to broker with many retained messages
