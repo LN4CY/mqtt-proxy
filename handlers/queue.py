@@ -24,7 +24,8 @@ class MessageQueue:
         """
         self.config = config
         self.get_interface = interface_provider
-        self.queue = queue.Queue()
+        self.max_size = getattr(config, 'mesh_max_queue_size', 100)
+        self.queue = queue.Queue(maxsize=self.max_size)
         self.running = False
         self.thread = None
 
@@ -46,15 +47,21 @@ class MessageQueue:
 
     def put(self, topic, payload, retained):
         """Enqueue a message to be sent to the radio."""
-        self.queue.put({
-            'topic': topic,
-            'payload': payload,
-            'retained': retained,
-            'timestamp': time.time()
-        })
-        qsize = self.queue.qsize()
-        if qsize > 10:
-             logger.debug(f"Queue growing: {qsize} messages pending")
+        try:
+            self.queue.put({
+                'topic': topic,
+                'payload': payload,
+                'retained': retained,
+                'timestamp': time.time()
+            }, block=False)
+            
+            qsize = self.queue.qsize()
+            if qsize >= (self.max_size * 0.8):
+                 logger.warning(f"Queue nearly full: {qsize}/{self.max_size} messages pending")
+            elif qsize > 10:
+                 logger.debug(f"Queue growing: {qsize} messages pending")
+        except queue.Full:
+            logger.error(f"Queue FULL ({self.max_size} msgs). Dropping new message for topic: {topic}")
 
     def _process_loop(self):
         """Main processing loop."""
