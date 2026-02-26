@@ -24,7 +24,17 @@ class MessageQueue:
         """
         self.config = config
         self.get_interface = interface_provider
-        self.max_size = getattr(config, 'mesh_max_queue_size', 100)
+        
+        # Ensure max_size is an integer, especially in tests where config might be a MagicMock
+        raw_max_size = getattr(config, 'mesh_max_queue_size', 100)
+        if isinstance(raw_max_size, int):
+            self.max_size = raw_max_size
+        else:
+            try:
+                self.max_size = int(raw_max_size)
+            except (TypeError, ValueError):
+                self.max_size = 100
+                
         self.queue = queue.Queue(maxsize=self.max_size)
         self.running = False
         self.thread = None
