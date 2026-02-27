@@ -96,7 +96,7 @@ class MessageQueue:
                     send_duration = time.time() - send_start
                     
                     queue_size = self.queue.qsize()
-                    logger.info(f"Message processed. Queue: {queue_size} msgs, Wait: {queue_duration:.3f}s, Send: {send_duration:.3f}s")
+                    logger.info(f"Message processed. Queue: {queue_size}/{self.max_size}, Wait: {queue_duration:.3f}s, Send: {send_duration:.3f}s")
                     
                     # 4. Rate Limiting
                     time.sleep(self.config.mesh_transmit_delay)
