@@ -47,7 +47,7 @@ class Config:
         self.mesh_transmit_delay = float(os.environ.get("MESH_TRANSMIT_DELAY", "0.01"))  # 10ms default delay between packets
         
         # Max number of messages to keep in queue before dropping new ones
-        self.mesh_max_queue_size = int(os.environ.get("MESH_MAX_QUEUE_SIZE", "100")) 
+        self.mesh_max_queue_size = int(os.environ.get("MESH_MAX_QUEUE_SIZE", "5000"))  
         
         # MQTT retained message handling
         # By default, skip retained messages to prevent startup floods with historical data

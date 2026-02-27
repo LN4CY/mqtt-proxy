@@ -106,6 +106,7 @@ BLE support requires custom implementation using the `bleak` library. See the [m
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
 | `MESH_TRANSMIT_DELAY` | float | `0.5` | **Rate Limiting**: Delay between outgoing packets (seconds). Prevents radio congestion. |
+| `MESH_MAX_QUEUE_SIZE` | integer | `5000` | Maximum number of outgoing messages buffered in RAM. A large queue handles sudden bursts (like returning from offline state) without dropping messages. Memory impact is negligible (~2.5MB per 10,000 messages). |
  
 > [!IMPORTANT]
 > **New "Probe & Kill" Logic:**
