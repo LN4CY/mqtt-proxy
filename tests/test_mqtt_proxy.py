@@ -126,6 +126,7 @@ class TestMessageQueue:
         """Test that _sendToRadio is used when available"""
         config = MagicMock()
         config.mesh_transmit_delay = 0.01
+        config.mesh_max_queue_size = 100
         
         mock_iface = MagicMock()
         # Mocking existence of _sendToRadio
@@ -146,6 +147,7 @@ class TestMessageQueue:
         """Test fallback to _sendToRadioImpl if _sendToRadio is missing"""
         config = MagicMock()
         config.mesh_transmit_delay = 0.01
+        config.mesh_max_queue_size = 100
         
         mock_iface = MagicMock()
         # Ensure _sendToRadio does NOT exist

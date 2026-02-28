@@ -46,6 +46,9 @@ class Config:
         # Typical transmission time is ~1ms, so 10ms provides a safe margin while maintaining responsiveness
         self.mesh_transmit_delay = float(os.environ.get("MESH_TRANSMIT_DELAY", "0.01"))  # 10ms default delay between packets
         
+        # Max number of messages to keep in queue before dropping new ones
+        self.mesh_max_queue_size = int(os.environ.get("MESH_MAX_QUEUE_SIZE", "5000"))  
+        
         # MQTT retained message handling
         # By default, skip retained messages to prevent startup floods with historical data
         self.mqtt_forward_retained = os.environ.get("MQTT_FORWARD_RETAINED", "false").lower() == "true"
