@@ -46,14 +46,14 @@ class MessageQueue:
         self.running = True
         self.thread = threading.Thread(target=self._process_loop, daemon=True, name="MessageQueueWorker")
         self.thread.start()
-        logger.info("Message queue started.")
+        logger.info("📦 Message queue started.")
 
     def stop(self):
         """Stop the queue processing."""
         self.running = False
         if self.thread and self.thread.is_alive():
             self.thread.join(timeout=1.0)
-        logger.info("Message queue stopped.")
+        logger.info("🛑 Message queue stopped.")
 
     def put(self, topic, payload, retained):
         """Enqueue a message to be sent to the radio."""
@@ -67,11 +67,11 @@ class MessageQueue:
             
             qsize = self.queue.qsize()
             if qsize >= (self.max_size * 0.8):
-                 logger.warning(f"Queue nearly full: {qsize}/{self.max_size} messages pending")
+                 logger.warning(f"⚠️ Queue nearly full: {qsize}/{self.max_size} messages pending")
             elif qsize > 10:
-                 logger.debug(f"Queue growing: {qsize} messages pending")
+                 logger.debug(f"📈 Queue growing: {qsize} messages pending")
         except queue.Full:
-            logger.error(f"Queue FULL ({self.max_size} msgs). Dropping new message for topic: {topic}")
+            logger.error(f"❌ Queue FULL ({self.max_size} msgs). Dropping new message for topic: {topic}")
 
     def _process_loop(self):
         """Main processing loop."""
@@ -96,13 +96,13 @@ class MessageQueue:
                     send_duration = time.time() - send_start
                     
                     queue_size = self.queue.qsize()
-                    logger.info(f"Message processed. Queue: {queue_size}/{self.max_size}, Wait: {queue_duration:.3f}s, Send: {send_duration:.3f}s")
+                    logger.info(f"✅ Message processed. Queue: {queue_size}/{self.max_size}, Wait: {queue_duration:.3f}s, Send: {send_duration:.3f}s")
                     
                     # 4. Rate Limiting
                     time.sleep(self.config.mesh_transmit_delay)
                     
                 except Exception as e:
-                    logger.error(f"Failed to send to radio: {e}")
+                    logger.error(f"❌ Failed to send to radio: {e}")
                     # Potentially re-queue? For now, we assume simple failure means drop to avoid head-of-line blocking
                     # on malformed packets. If connection lost, _wait_for_interface matches next time.
                 
@@ -111,7 +111,7 @@ class MessageQueue:
             except queue.Empty:
                 pass
             except Exception as e:
-                logger.error(f"Error in queue processing loop: {e}")
+                logger.error(f"❌ Error in queue processing loop: {e}")
                 time.sleep(1)
 
     def _wait_for_interface(self):
@@ -142,7 +142,7 @@ class MessageQueue:
         if hasattr(iface, "_sendToRadio"):
              iface._sendToRadio(to_radio)
         else:
-             logger.warning("Interface missing _sendToRadio, falling back to _sendToRadioImpl (potentially unsafe)")
+             logger.warning("⚠️ Interface missing _sendToRadio, falling back to _sendToRadioImpl (potentially unsafe)")
              iface._sendToRadioImpl(to_radio)
              
-        logger.debug(f"Sent to radio: {item['topic']} ({size} bytes)")
+        logger.debug(f"📤 Sent to radio: {item['topic']} ({size} bytes)")

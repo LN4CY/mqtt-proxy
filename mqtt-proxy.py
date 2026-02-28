@@ -45,7 +45,7 @@ class MQTTProxy:
         self.last_status_log_time = 0
 
     def start(self):
-        logger.info("MQTT Proxy starting (interface: %s)...", cfg.interface_type.upper())
+        logger.info("🚀 MQTT Proxy starting (interface: %s)...", cfg.interface_type.upper())
         
         # Start the message queue
         self.message_queue.start()
@@ -63,7 +63,7 @@ class MQTTProxy:
             try:
                 # Create interface (this connects to the radio)
                 self.iface = create_interface(cfg, self)
-                logger.info("TCP/Serial connection initiated...")
+                logger.info("🔌 TCP/Serial connection initiated...")
                 
                 # Wait for node configuration (connection + config packet)
                 self._wait_for_config()
@@ -71,7 +71,7 @@ class MQTTProxy:
                 # Initialize MQTT after config is fully loaded
                 self._init_mqtt()
                 
-                logger.info("Node config fully loaded. Proxy active.")
+                logger.info("✅ Node config fully loaded. Proxy active.")
                 
                 # Main Loop
                 last_heartbeat = 0
@@ -84,12 +84,12 @@ class MQTTProxy:
                     self._update_heartbeat(current_time, health_ok, reasons)
                     
             except Exception as e:
-                logger.error("Connection error: %s", e)
+                logger.error("❌ Connection error: %s", e)
             finally:
                 self._cleanup()
 
             if self.running:
-                logger.info("Reconnecting in 5 seconds...")
+                logger.info("⏳ Reconnecting in 5 seconds...")
                 time.sleep(5)
 
     def _wait_for_config(self):
@@ -100,7 +100,7 @@ class MQTTProxy:
                 return
             
             if time.time() - wait_start > cfg.config_wait_timeout:
-                logger.warning(f"Connected but no config received for {cfg.config_wait_timeout}s...")
+                logger.warning(f"⚠️ Connected but no config received for {cfg.config_wait_timeout}s...")
                 # We don't exit, just warn, as sometimes config takes a while or is partial
             
             time.sleep(cfg.poll_interval)
@@ -109,7 +109,7 @@ class MQTTProxy:
         """Callback when Meshtastic connection is established."""
         node = interface.localNode
         if not node:
-            logger.warning("No localNode available")
+            logger.warning("⚠️ No localNode available")
             return
 
         self.last_radio_activity = time.time()
@@ -122,15 +122,15 @@ class MQTTProxy:
             else:
                 node_id = "{:08x}".format(node.nodeNum)
         except Exception as e:
-            logger.error("Error getting node ID: %s", e)
+            logger.error("❌ Error getting node ID: %s", e)
             node_id = "unknown"
 
-        logger.info("Connected to node !%s", node_id)
+        logger.info("📻 Connected to node !%s", node_id)
 
     def _init_mqtt(self):
         """Initialize and start the MQTT handler."""
         if not self.iface or not self.iface.localNode:
-            logger.warning("No interface or localNode for MQTT initialization")
+            logger.warning("⚠️ No interface or localNode for MQTT initialization")
             return
 
         node = self.iface.localNode
@@ -146,25 +146,25 @@ class MQTTProxy:
 
         # Cleanup existing handler if any
         if self.mqtt_handler:
-            logger.info("Stopping old MQTT handler before restart...")
+            logger.info("🛑 Stopping old MQTT handler before restart...")
             self.mqtt_handler.stop()
             self.mqtt_handler = None
 
         # Initialize MQTT if config exists
         if node.moduleConfig and node.moduleConfig.mqtt:
-            logger.info("Initializing MQTT Handler for node !%s...", node_id)
+            logger.info("🌐 Initializing MQTT Handler for node !%s...", node_id)
             self.mqtt_handler = MQTTHandler(cfg, node_id, self.on_mqtt_message_to_radio, deduplicator=self.deduplicator)
             self.mqtt_handler.configure(node.moduleConfig.mqtt)
             self.mqtt_handler.start()
         else:
-            logger.warning("No MQTT configuration found on node !%s!", node_id)
+            logger.warning("⚠️ No MQTT configuration found on node !%s!", node_id)
 
     def on_connection_lost(self, interface, **kwargs):
         """Callback when connection to radio is lost."""
         if self.connection_lost_time > 0 and (time.time() - self.connection_lost_time < 2):
             return # Debounce
 
-        logger.warning("Meshtastic connection reported LOST!")
+        logger.warning("⚠️ Meshtastic connection reported LOST!")
         self.connection_lost_time = time.time()
         
         # Cleanup will happen in main loop via _cleanup or forced restart in health check
@@ -199,7 +199,7 @@ class MQTTProxy:
         # 2. Connection Lost Watchdog
         if self.connection_lost_time > 0:
             if current_time - self.connection_lost_time > 60:
-                logger.error("Connection LOST for >60s. Forcing restart...")
+                logger.error("🚨 Connection LOST for >60s. Forcing restart...")
                 sys.exit(1)
 
         # 3. Radio Watchdog
@@ -209,13 +209,13 @@ class MQTTProxy:
                 # Silence...
                 time_since_probe = current_time - self.last_probe_time
                 if time_since_probe > 40:
-                    logger.warning(f"Radio silent for {int(time_since_radio)}s. Sending active probe...")
+                    logger.warning(f"📡 Radio silent for {int(time_since_radio)}s. Sending active probe...")
                     try:
                         self.last_probe_time = current_time
                         if self.iface:
                              self.iface.sendPosition()
                     except Exception as e:
-                        logger.warning("Failed to probe: %s", e)
+                        logger.warning("⚠️ Failed to probe: %s", e)
                 elif time_since_probe > 30:
                      health_ok = False
                      reasons.append(f"Radio silent (Probed {int(time_since_probe)}s ago - NO REPLY)")
@@ -234,7 +234,7 @@ class MQTTProxy:
                 if isinstance(mqtt_active, (int, float)) and mqtt_active > 0:
                     time_since_mqtt = current_time - mqtt_active
             
-            logger.info("=== MQTT Proxy Status ===")
+            logger.info("📊 === MQTT Proxy Status ===")
             logger.info("  MQTT Connected: %s", mqtt_connected)
             logger.info("  Radio Activity: %s ago", f"{int(time_since_radio)}s" if time_since_radio >= 0 else "never")
             logger.info("  MQTT Activity:  %s ago", f"{int(time_since_mqtt)}s" if time_since_mqtt >= 0 else "never")
@@ -248,7 +248,7 @@ class MQTTProxy:
             else:
                 if os.path.exists("/tmp/healthy"):
                     os.remove("/tmp/healthy")
-                logger.error("Health check FAILED: %s. Exiting...", ", ".join(reasons))
+                logger.error("❌ Health check FAILED: %s. Exiting...", ", ".join(reasons))
                 sys.exit(1)
         except Exception as e:
             pass
@@ -264,7 +264,7 @@ class MQTTProxy:
             self.message_queue.stop()
 
     def handle_sigint(self, sig, frame):
-        logger.info("Received Ctrl+C, shutting down...")
+        logger.info("🛑 Received Ctrl+C, shutting down...")
         self.running = False
         self._cleanup()
 

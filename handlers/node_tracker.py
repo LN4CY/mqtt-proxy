@@ -28,7 +28,7 @@ class PacketDeduplicator:
         
         with self.lock:
             self.seen_packets[key] = time.time()
-            # logger.debug(f"Marked packet {key} as seen on mesh.")
+            # logger.debug(f"🔄 Marked packet {key} as seen on mesh.")
             self._cleanup()
 
     def is_duplicate(self, node_id, packet_id):

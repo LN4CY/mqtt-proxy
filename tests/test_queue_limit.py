@@ -43,7 +43,7 @@ class TestMessageQueueLimit(unittest.TestCase):
             self.assertEqual(self.q.queue.qsize(), self.max_size)
             
             # Logger error should have been called
-            mock_logger.error.assert_called_with(f"Queue FULL ({self.max_size} msgs). Dropping new message for topic: dropped_topic")
+            mock_logger.error.assert_called_with(f"❌ Queue FULL ({self.max_size} msgs). Dropping new message for topic: dropped_topic")
 
     def test_queue_warning_near_full(self):
         """Test that a warning is logged when queue reaches 80%."""
@@ -53,7 +53,7 @@ class TestMessageQueueLimit(unittest.TestCase):
                 self.q.put(f"topic_{i}", b"data", False)
             
             # 4th message should trigger warning
-            mock_logger.warning.assert_called_with(f"Queue nearly full: 4/{self.max_size} messages pending")
+            mock_logger.warning.assert_called_with(f"⚠️ Queue nearly full: 4/{self.max_size} messages pending")
 
 if __name__ == '__main__':
     unittest.main()

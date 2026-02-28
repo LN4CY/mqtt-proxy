@@ -38,7 +38,7 @@ class MQTTHandler:
         cfg = node_mqtt_config
 
         if not getattr(cfg, 'enabled', False):
-            logger.warning("MQTT is NOT enabled in node config! Please enable it via 'meshtastic --set mqtt.enabled true'")
+            logger.warning("⚠️ MQTT is NOT enabled in node config! Please enable it via 'meshtastic --set mqtt.enabled true'")
         
         # Safely get attributes with defaults
         mqtt_address = getattr(cfg, 'address', None)
@@ -47,14 +47,14 @@ class MQTTHandler:
         mqtt_password = getattr(cfg, 'password', None)
         self.mqtt_root = getattr(cfg, 'root', 'msh')
         
-        logger.info("Starting MQTT Client...")
-        logger.info("  Server: %s:%d", mqtt_address, mqtt_port)
-        logger.info("  User: %s", mqtt_username)
-        logger.info("  Root Topic: %s", self.mqtt_root)
+        logger.info("🌐 Starting MQTT Client...")
+        logger.info("  📡 Server: %s:%d", mqtt_address, mqtt_port)
+        logger.info("  👤 User: %s", mqtt_username)
+        logger.info("  🌳 Root Topic: %s", self.mqtt_root)
         
         # Client ID matching iOS pattern
         client_id = f"MeshtasticPythonMqttProxy-{self.node_id}"
-        logger.info("Setting MQTT Client ID: %s", client_id)
+        logger.info("🆔 Setting MQTT Client ID: %s", client_id)
         
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=client_id)
         if mqtt_username and mqtt_password:
@@ -66,7 +66,7 @@ class MQTTHandler:
              use_ssl = True
              
         if use_ssl:
-             logger.info("SSL/TLS Enabled")
+             logger.info("🔒 SSL/TLS Enabled")
              context = ssl.create_default_context()
              context.check_hostname = False
              context.verify_mode = ssl.CERT_NONE
@@ -74,7 +74,7 @@ class MQTTHandler:
              
              if mqtt_port == 1883:
                  mqtt_port = 8883
-                 logger.info("Switching to default SSL port: 8883")
+                 logger.info("🔄 Switching to default SSL port: 8883")
         
         self.client.on_connect = self._on_connect
         self.client.on_disconnect = self._on_disconnect
@@ -87,12 +87,12 @@ class MQTTHandler:
     def start(self):
         """Connect and start the MQTT loop."""
         if not self.client or not self.mqtt_address:
-            logger.error("MQTT not configured, cannot start.")
+            logger.error("❌ MQTT not configured, cannot start.")
             return
 
         try:
             if not self.mqtt_address or self.mqtt_address == "255.255.255.255":
-                logger.warning("Invalid MQTT address in config: %s", self.mqtt_address)
+                logger.warning("⚠️ Invalid MQTT address in config: %s", self.mqtt_address)
                 return
 
             # LWT (Last Will and Testament)
@@ -100,12 +100,12 @@ class MQTTHandler:
                topic_stat = f"{self.mqtt_root}/2/stat/!{self.node_id}"
                self.client.will_set(topic_stat, payload="offline", retain=True)
             
-            logger.info(f"Connecting to {self.mqtt_address}:{self.mqtt_port}...")
+            logger.info(f"🔌 Connecting to {self.mqtt_address}:{self.mqtt_port}...")
             self.client.connect(self.mqtt_address, self.mqtt_port, 60)
             self.client.loop_start()
             
         except Exception as e:
-            logger.error("Failed to connect to MQTT broker: %s", e)
+            logger.error("❌ Failed to connect to MQTT broker: %s", e)
 
     def stop(self):
         """Stop the MQTT loop and disconnect."""
@@ -125,13 +125,13 @@ class MQTTHandler:
                 self.tx_failures = 0
                 return True
             else:
-                logger.warning("MQTT publish failed: rc=%s", result.rc)
+                logger.warning("⚠️ MQTT publish failed: rc=%s", result.rc)
                 self.tx_failures += 1
                 return False
         return False
 
     def _on_connect(self, client, userdata, flags, rc, props=None):
-        logger.info("MQTT Connected with result code: %s", rc)
+        logger.info("✅ MQTT Connected with result code: %s", rc)
         if rc == 0:
             self.connected = True
             self.health_check_enabled = True
@@ -146,18 +146,18 @@ class MQTTHandler:
                 
                 # Subscribe to ALL Encrypted Traffic
                 topic_enc = f"{root_topic}/2/e/#"
-                logger.info("Subscribing to Encrypted Wildcard: %s", topic_enc)
+                logger.info("📥 Subscribing to Encrypted Wildcard: %s", topic_enc)
                 client.subscribe(topic_enc)
         else:
             self.connected = False
-            logger.error("MQTT Connect failed: %s", rc)
+            logger.error("❌ MQTT Connect failed: %s", rc)
 
     def _on_disconnect(self, client, userdata, flags, rc, props=None):
         self.connected = False
         if rc != 0:
-            logger.warning("MQTT Disconnected unexpectedly (rc=%s). Will attempt to reconnect.", rc)
+            logger.warning("⚠️ MQTT Disconnected unexpectedly (rc=%s). Will attempt to reconnect.", rc)
         else:
-            logger.info("MQTT Disconnected gracefully.")
+            logger.info("🛑 MQTT Disconnected gracefully.")
 
     def _on_message(self, client, userdata, message):
         """Handle incoming MQTT messages."""
@@ -179,7 +179,7 @@ class MQTTHandler:
 
             # Topic check loop prevention (Bypass for echoes so firmware gets its ACK)
             if self.node_id and message.topic.endswith(f"!{self.node_id}") and not is_echo:
-                 logger.debug("Ignoring own MQTT message (Loop protection): %s", message.topic)
+                 logger.debug("🛡️ Ignoring own MQTT message (Loop protection): %s", message.topic)
                  return
 
             # Enhanced Loop Protection: Check for duplicate Packet ID from same Sender
@@ -216,25 +216,25 @@ class MQTTHandler:
                     
                     if self.deduplicator and sender_node_id and packet_id:
                          if self.deduplicator.is_duplicate(sender_node_id, packet_id):
-                             logger.info(f"Ignoring duplicate MQTT message from {sender_node_id} (PacketId={packet_id}) (Loop Prevention)")
+                             logger.info(f"🛡️ Ignoring duplicate MQTT message from {sender_node_id} (PacketId={packet_id}) (Loop Prevention)")
                              return
 
                 except Exception as e:
-                    logger.debug(f"Error checking loop tracker: {e}")
+                    logger.debug(f"⚠️ Error checking loop tracker: {e}")
              
             # Skip retained messages by default - they're historical state, not new mesh traffic
             # This prevents startup floods when connecting to broker with many retained messages
             if message.retain and not (self.config and getattr(self.config, 'mqtt_forward_retained', False)):
-                logger.debug(f"Skipping retained MQTT message: {message.topic}")
+                logger.debug(f"⏭️ Skipping retained MQTT message: {message.topic}")
                 return
               
             self.last_activity = time.time()
             self.rx_count += 1
             
-            logger.info("MQTT->Node: Topic=%s Size=%d bytes Retained=%s", message.topic, len(message.payload), message.retain)
+            logger.info("📥 MQTT->Node: Topic=%s Size=%d bytes Retained=%s", message.topic, len(message.payload), message.retain)
             
             if self.on_message_callback:
                 self.on_message_callback(message.topic, message.payload, message.retain)
                 
         except Exception as e:
-            logger.error("Error handling MQTT message: %s", e)
+            logger.error("❌ Error handling MQTT message: %s", e)

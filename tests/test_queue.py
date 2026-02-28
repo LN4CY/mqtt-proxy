@@ -142,7 +142,7 @@ class TestMessageQueue(unittest.TestCase):
             time.sleep(0.2)
             
             # Should have logged error
-            mock_logger.error.assert_called_with("Failed to send to radio: Radio error")
+            mock_logger.error.assert_called_with("❌ Failed to send to radio: Radio error")
             # Queue should still be running/processing
             assert self.q.running
 
