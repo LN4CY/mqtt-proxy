@@ -1,5 +1,20 @@
-# Release v1.4.1
+# Release v1.4.2
 
+## 🐛 Bug Fixes
+
+### Echo Bypass is Too Broad (Issue #25)
+- **Narrowed Implicit ACK Echo Bypass**: Fixed an issue where the loop prevention bypass was too broad, causing unencrypted routing, position, and telemetry packets to echo back to the node unnecessarily.
+  - Instead of bypassing loop protection for all packets from the local gateway, the proxy now explicitly checks if the packet is `encrypted` or has a valid `request_id`.
+  - Administrative/plain packets are properly dropped by the loop tracker to minimize unnecessary RF traffic.
+
+## 🧪 Test Coverage
+- Added new test cases in `tests/test_echo_bypass.py` to ensure only correct packet types (encrypted, request_id) explicitly bypass loop prevention.
+
+---
+
+**Full Changelog**: https://github.com/LN4CY/mqtt-proxy/compare/v1.4.1...v1.4.2
+
+# Release v1.4.1
 ## 🐛 Bug Fixes
 
 ### "Proxy to Client" Ack Restoration (The "Red X" Fix)
