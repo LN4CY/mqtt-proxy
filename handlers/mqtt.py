@@ -169,7 +169,17 @@ class MQTTHandler:
                 envelope.ParseFromString(message.payload)
                 if envelope.gateway_id:
                     if self.node_id and (envelope.gateway_id == self.node_id or envelope.gateway_id == f"!{self.node_id}"):
-                        is_echo = True
+                        packet = envelope.packet
+                        # Only allow echo bypass for packets that are eligible for Implicit ACKs
+                        is_eligible_for_ack = False
+                        
+                        if packet.HasField("encrypted") and packet.encrypted:
+                            is_eligible_for_ack = True
+                        elif packet.HasField("decoded") and getattr(packet.decoded, "request_id", 0):
+                            is_eligible_for_ack = True
+                            
+                        if is_eligible_for_ack:
+                            is_echo = True
             except Exception:
                 pass
 
