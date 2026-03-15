@@ -166,18 +166,30 @@ Docker Desktop for Windows works perfectly for TCP connections. Use the standard
 **Serial Interface (USB):**
 Docker on Windows **does not support USB passthrough directly** because Docker runs in WSL2.
 
-**Option A: Run Natively with venv (Recommended)**
+**Option A: Run Natively with venv (Recommended for General Use & MeshMonitor Desktop App)**
+Running via Python natively is the easiest way to run the proxy on Windows, especially if you are using the **MeshMonitor Windows Desktop App**.
+
+1. In the MeshMonitor Windows App, go to Settings and check **"Enable Virtual Node Server"**. This starts a local MeshNode server on port `4404`.
+2. Open PowerShell or Command Prompt.
+3. Create and activate a virtual environment:
 ```powershell
-# Create and activate virtual environment
 python -m venv venv
 .\venv\Scripts\Activate.ps1
-
-# Install dependencies
+```
+4. Install dependencies:
+```powershell
 pip install -r requirements.txt
+```
+5. Set environment variables to connect to MeshMonitor's local Virtual Node:
+```powershell
+$env:INTERFACE_TYPE="tcp"
+$env:TCP_NODE_HOST="127.0.0.1"
+$env:TCP_NODE_PORT="4404"
+```
+*(If you are plugging in a device directly via USB instead of MeshMonitor, set `$env:INTERFACE_TYPE="serial"` and `$env:SERIAL_PORT="COM3"`).*
 
-# Run with environment variables
-$env:INTERFACE_TYPE="serial"
-$env:SERIAL_PORT="COM3"  # Check Device Manager for your actual COM port
+6. Run the proxy:
+```powershell
 python mqtt-proxy.py
 ```
 
