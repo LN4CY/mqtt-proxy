@@ -8,7 +8,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from handlers.mqtt import MQTTHandler
 from meshtastic import mesh_pb2
-from meshtastic.protobuf import mqtt_pb2
+from meshtastic.protobuf import mqtt_pb2, portnums_pb2
 
 def test_mqtt_loop_prevention_echo_bypass_encrypted():
     config_mock = MagicMock()
@@ -62,7 +62,7 @@ def test_mqtt_loop_prevention_blocks_unencrypted_no_request():
     # Simulate a packet like NodeInfo without encryption or request_id
     envelope = mqtt_pb2.ServiceEnvelope()
     envelope.gateway_id = "!mynode"
-    envelope.packet.decoded.portnum = 1 # NODEINFO_APP
+    envelope.packet.decoded.portnum = portnums_pb2.NODEINFO_APP
     
     msg = MagicMock()
     msg.topic = "msh/US/2/e/LongFast/!mynode" # From us
