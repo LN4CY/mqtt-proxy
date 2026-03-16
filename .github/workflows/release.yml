@@ -20,7 +20,8 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
-          generate_release_notes: true
+          body_path: latest_notes.md
+          generate_release_notes: false
 
   build-windows-exe:
     # Remove needs: release so it still runs even if the release job is skipped

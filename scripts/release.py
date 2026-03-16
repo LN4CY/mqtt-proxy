@@ -60,6 +60,45 @@ def update_version_py(version):
     print(f"Updated version.py with version {version}")
     return version_path
 
+def extract_release_notes(version):
+    notes_path = "RELEASE_NOTES.md"
+    if not os.path.exists(notes_path):
+        notes_path = "../RELEASE_NOTES.md"
+        if not os.path.exists(notes_path):
+            print("RELEASE_NOTES.md not found!")
+            return None
+            
+    with open(notes_path, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+        
+    version_header = f"# Release v{version}"
+    start_line = -1
+    for i, line in enumerate(lines):
+        if line.strip() == version_header:
+            start_line = i
+            break
+            
+    if start_line == -1:
+        print(f"Warning: Could not find header '{version_header}' in RELEASE_NOTES.md")
+        return None
+        
+    # Collect lines until the next version header or end of file
+    release_notes = []
+    for i in range(start_line + 1, len(lines)):
+        if lines[i].startswith("# Release v"):
+            break
+        release_notes.append(lines[i])
+        
+    # Trim leading/trailing whitespace lines
+    notes_content = "".join(release_notes).strip()
+    
+    output_path = "latest_notes.md"
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(notes_content)
+        
+    print(f"Extracted release notes for v{version} to {output_path}")
+    return output_path
+
 def git_commit_and_tag(version, files_to_commit):
     tag_name = f"v{version}"
     print(f"Creating git release for {tag_name}...")
@@ -93,6 +132,7 @@ def main():
     else:
         updated_readme = update_readme(args.version)
         updated_version = update_version_py(args.version)
+        extract_release_notes(args.version)
         git_commit_and_tag(args.version, [updated_readme, updated_version])
 
 if __name__ == "__main__":
