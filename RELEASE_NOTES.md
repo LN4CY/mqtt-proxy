@@ -1,3 +1,16 @@
+# Release v1.4.3
+
+## 📦 Dependencies
+- **Bump Meshtastic to 2.7.8**: Upgraded python `meshtastic` dependency to the latest `2.7.8` version for compatibility with the newest firmware module configs (e.g. Traffic Management and StatusMessage).
+
+## 🛠️ Infrastructure
+- **CI/CD Fix**: Fixed the GitHub Actions Docker build workflow trying to push images to GHCR during Pull Requests, which caused permission errors.
+
+## 🧹 Refactoring
+- **Simplify Echo Bypass**: Cached prefixed node ID and cleaned up the `_on_message` boolean logic structure. Thank you @NearlCrews!
+
+---
+
 # Release v1.4.2
 
 ## 🐛 Bug Fixes

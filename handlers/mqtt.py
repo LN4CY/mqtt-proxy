@@ -30,6 +30,7 @@ class MQTTHandler:
         # Signature: (topic, payload, retained)
         self.on_message_callback = on_message_callback
         
+        self.prefixed_node_id = f"!{node_id}" if node_id else None
         self.current_mqtt_cfg = None
 
     def configure(self, node_mqtt_config):
@@ -97,7 +98,7 @@ class MQTTHandler:
 
             # LWT (Last Will and Testament)
             if self.node_id:
-               topic_stat = f"{self.mqtt_root}/2/stat/!{self.node_id}"
+               topic_stat = f"{self.mqtt_root}/2/stat/{self.prefixed_node_id}"
                self.client.will_set(topic_stat, payload="offline", retain=True)
             
             logger.info(f"🔌 Connecting to {self.mqtt_address}:{self.mqtt_port}...")
@@ -141,7 +142,7 @@ class MQTTHandler:
                 root_topic = self.mqtt_root
                 
                 # Publish Online Presence
-                topic_stat = f"{root_topic}/2/stat/!{self.node_id}"
+                topic_stat = f"{root_topic}/2/stat/{self.prefixed_node_id}"
                 client.publish(topic_stat, payload="online", retain=True)
                 
                 # Subscribe to ALL Encrypted Traffic
@@ -168,17 +169,11 @@ class MQTTHandler:
                 envelope = mqtt_pb2.ServiceEnvelope()
                 envelope.ParseFromString(message.payload)
                 if envelope.gateway_id:
-                    if self.node_id and (envelope.gateway_id == self.node_id or envelope.gateway_id == f"!{self.node_id}"):
+                    if self.node_id and (envelope.gateway_id == self.node_id or envelope.gateway_id == self.prefixed_node_id):
                         packet = envelope.packet
                         # Only allow echo bypass for packets that are eligible for Implicit ACKs
-                        is_eligible_for_ack = False
-                        
-                        if packet.HasField("encrypted") and packet.encrypted:
-                            is_eligible_for_ack = True
-                        elif packet.HasField("decoded") and getattr(packet.decoded, "request_id", 0):
-                            is_eligible_for_ack = True
-                            
-                        if is_eligible_for_ack:
+                        if packet.HasField("encrypted") or \
+                           (packet.HasField("decoded") and packet.decoded.request_id):
                             is_echo = True
             except Exception:
                 pass
@@ -188,7 +183,7 @@ class MQTTHandler:
                 return
 
             # Topic check loop prevention (Bypass for echoes so firmware gets its ACK)
-            if self.node_id and message.topic.endswith(f"!{self.node_id}") and not is_echo:
+            if self.node_id and message.topic.endswith(self.prefixed_node_id) and not is_echo:
                  logger.debug("🛡️ Ignoring own MQTT message (Loop protection): %s", message.topic)
                  return
 
