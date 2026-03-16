@@ -92,6 +92,7 @@ BLE support requires custom implementation using the `bleak` library. See the [m
 |----------|------|---------|-------------|
 | `CONFIG_WAIT_TIMEOUT` | integer | `60` | Max time to wait for node config (seconds) |
 | `POLL_INTERVAL` | integer | `1` | Config polling interval (seconds) |
+| `EXTRA_MQTT_ROOTS` | string | _(empty)_ | Comma-separated list of additional MQTT root topics to subscribe to (e.g., `msh/US/OH,msh/US/CA`). Enables monitoring traffic from other regions. |
 
 ### Health Check Settings
  
@@ -117,6 +118,24 @@ BLE support requires custom implementation using the `bleak` library. See the [m
 > 2. **Connection Lost Watchdog**:
 >    - If the Meshtastic library reports a "Connection Lost" event (e.g., DNS resolution failure `[Errno -2]`), the proxy starts a 60-second timer.
 >    - If the connection is not re-established within that 60 seconds, the proxy will **exit immediately** to force a restart.
+
+### Extra MQTT Root Topics
+
+Monitor traffic from additional regions or communities beyond your node's configured MQTT root topic.
+
+**Use Case:** Your node is configured with `msh/US/MI` but you also want to monitor Ohio and California traffic.
+
+**Configuration:**
+```env
+EXTRA_MQTT_ROOTS=msh/US/OH,msh/US/CA
+```
+
+The proxy will subscribe to encrypted traffic (`{root}/2/e/#`) for each additional root topic. Packets are forwarded to MeshMonitor where they can be decrypted using Channel Database keys.
+
+**Notes:**
+- Duplicates of the node's own root topic are automatically ignored
+- This is read-only monitoring — the proxy does not publish to extra root topics
+- Requires the Channel Database in MeshMonitor to have the appropriate decryption keys
 
 ## Meshtastic Node Configuration
 
