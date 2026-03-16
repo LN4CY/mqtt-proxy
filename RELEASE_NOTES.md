@@ -1,4 +1,4 @@
-# Release v1.5.2
+# Release v1.5.3
 
 ## 🚀 New Features
 
@@ -12,7 +12,7 @@
 ### Version Tracking & Identification
 - **Single Source of Truth:** Introduced `version.py` to manage the application version globally.
 - **Improved Visibility:**
-  - The binary version is now printed in the startup logs: `🚀 MQTT Proxy v1.5.2 starting...`.
+  - The binary version is now printed in the startup logs: `🚀 MQTT Proxy v1.5.3 starting...`.
   - Added a `--version` flag to the CLI for quick verification.
   - Added a version tag to the `README.md` for consistent project tracking.
 
