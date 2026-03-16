@@ -80,8 +80,11 @@ jobs:
           "
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          body_path: latest_notes.md
-          files: release-assets/mqtt-proxy-windows-amd64.exe
-          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Use gh CLI for atomic creation to satisfy "Immutable Release" rules
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file latest_notes.md \
+            release-assets/mqtt-proxy-windows-amd64.exe
