@@ -13,6 +13,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy all application modules
+COPY version.py .
 COPY mqtt-proxy.py .
 COPY config.py .
 COPY handlers/ ./handlers/
