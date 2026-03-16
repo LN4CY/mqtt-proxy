@@ -17,11 +17,40 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
+      - name: Extract Release Notes
+        shell: bash
+        run: |
+          # Use a simple python snippet to extract the notes
+          python3 -c "
+          import os
+          version = os.environ.get('GITHUB_REF_NAME', '').replace('v', '')
+          notes_path = 'RELEASE_NOTES.md'
+          if not os.path.exists(notes_path):
+              exit(0)
+          with open(notes_path, 'r', encoding='utf-8') as f:
+              lines = f.readlines()
+          header = f'# Release v{version}'
+          start = -1
+          for i, l in enumerate(lines):
+              if l.strip() == header:
+                  start = i
+                  break
+          if start == -1:
+              exit(0)
+          notes = []
+          for i in range(start + 1, len(lines)):
+              if lines[i].startswith('# Release v'):
+                  break
+              notes.append(lines[i])
+          with open('latest_notes.md', 'w', encoding='utf-8') as f:
+              f.write(''.join(notes).strip())
+          "
+
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
           body_path: latest_notes.md
-          generate_release_notes: false
+          generate_release_notes: true # Fallback if latest_notes.md is empty
 
   build-windows-exe:
     # Remove needs: release so it still runs even if the release job is skipped
