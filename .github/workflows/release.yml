@@ -10,17 +10,50 @@ permissions:
   contents: write
 
 jobs:
+  build-windows-exe:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build Executable
+        run: |
+          pyinstaller --name mqtt-proxy-windows-amd64 --onefile --console --runtime-tmpdir "%LOCALAPPDATA%\Temp" mqtt-proxy.py
+
+      - name: Upload Artifact for Release
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-binary
+          path: dist/mqtt-proxy-windows-amd64.exe
+
   release:
+    needs: build-windows-exe
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Checkout
         uses: actions/checkout@v3
 
+      - name: Download Windows Binary
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-binary
+          path: release-assets/
+
       - name: Extract Release Notes
         shell: bash
         run: |
-          # Use a simple python snippet to extract the notes
           python3 -c "
           import os
           version = os.environ.get('GITHUB_REF_NAME', '').replace('v', '')
@@ -46,43 +79,9 @@ jobs:
               f.write(''.join(notes).strip())
           "
 
-      - name: Release
+      - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           body_path: latest_notes.md
-          generate_release_notes: true # Fallback if latest_notes.md is empty
-
-  build-windows-exe:
-    # Remove needs: release so it still runs even if the release job is skipped
-    runs-on: windows-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.12'
-          
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
-
-      - name: Build Executable
-        run: |
-          pyinstaller --name mqtt-proxy-windows-amd64 --onefile --console --runtime-tmpdir "%LOCALAPPDATA%\Temp" mqtt-proxy.py
-
-      - name: Upload Release Asset
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v1
-        with:
-          files: dist/mqtt-proxy-windows-amd64.exe
-          
-      - name: Upload Build Artifact (for validation)
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: mqtt-proxy-windows-amd64
-          path: dist/mqtt-proxy-windows-amd64.exe
+          files: release-assets/mqtt-proxy-windows-amd64.exe
+          generate_release_notes: true
