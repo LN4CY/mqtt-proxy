@@ -428,6 +428,38 @@ python mqtt-proxy.py
 docker compose build
 ```
 
+## Releasing New Versions
+
+Because this repository enforces **Pull Request requirements** for the `master` branch, follow this workflow to release a new version:
+
+1. **Create a Release Branch:**
+   ```bash
+   git checkout -b release/v1.6.0
+   ```
+
+2. **Run the Release Script:**
+   Use the provided automation script to bump the version in `version.py` and `README.md`:
+   ```bash
+   python scripts/release.py 1.6.0
+   ```
+   *This will create a local "chore: release v1.6.0" commit and a local `v1.6.0` tag.*
+
+3. **Push and Open a PR:**
+   Push the branch and open a Pull Request to `master`.
+   ```bash
+   git push origin release/v1.6.0
+   ```
+
+4. **Merge and Tag:**
+   Once the PR is merged into `master`, push the local tag to GitHub to trigger the release pipeline:
+   ```bash
+   git checkout master
+   git pull
+   git push origin v1.6.0
+   ```
+
+The GitHub Actions will automatically detect the new tag, build the Windows executable, and publish the Docker images.
+
 ## Contributing
 
 Contributions welcome! Please:
