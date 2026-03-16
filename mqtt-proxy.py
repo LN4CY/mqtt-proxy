@@ -16,8 +16,15 @@ from handlers.meshtastic import create_interface
 from handlers.node_tracker import PacketDeduplicator
 from handlers.queue import MessageQueue
 
+# Force unbuffered standard output and utf-8 encoding for real-time logging when run via spawn/exec
+if sys.stdout and not sys.stdout.isatty():
+    sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
+if sys.stderr and not sys.stderr.isatty():
+    sys.stderr.reconfigure(encoding='utf-8', line_buffering=True)
+
 # Configure logging
 logging.basicConfig(
+    stream=sys.stdout,
     level=cfg.log_level,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
