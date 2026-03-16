@@ -137,18 +137,27 @@ class MQTTHandler:
             self.connected = True
             self.health_check_enabled = True
             self.last_activity = time.time()
-            
+
             if self.current_mqtt_cfg:
                 root_topic = self.mqtt_root
-                
+
                 # Publish Online Presence
                 topic_stat = f"{root_topic}/2/stat/{self.prefixed_node_id}"
                 client.publish(topic_stat, payload="online", retain=True)
-                
-                # Subscribe to ALL Encrypted Traffic
+
+                # Subscribe to ALL Encrypted Traffic under node's root
                 topic_enc = f"{root_topic}/2/e/#"
                 logger.info("📥 Subscribing to Encrypted Wildcard: %s", topic_enc)
                 client.subscribe(topic_enc)
+
+                # Subscribe to extra MQTT root topics
+                subscribed_roots = {root_topic}
+                for extra_root in getattr(self.config, 'extra_mqtt_roots', []):
+                    if extra_root not in subscribed_roots:
+                        extra_topic = f"{extra_root}/2/e/#"
+                        logger.info("📥 Subscribing to Extra Root: %s", extra_topic)
+                        client.subscribe(extra_topic)
+                        subscribed_roots.add(extra_root)
         else:
             self.connected = False
             logger.error("❌ MQTT Connect failed: %s", rc)
