@@ -69,5 +69,10 @@ class Config:
         # By default, skip retained messages to prevent startup floods with historical data
         self.mqtt_forward_retained = os.environ.get("MQTT_FORWARD_RETAINED", "false").lower() == "true"
 
+        # Extra MQTT root topics for cross-region monitoring
+        # Comma-separated list, e.g. "msh/US/OH,msh/US/CA"
+        extra_roots_raw = os.environ.get("EXTRA_MQTT_ROOTS", "")
+        self.extra_mqtt_roots = [r.strip() for r in extra_roots_raw.split(",") if r.strip()]
+
 # Global instance
 cfg = Config()
