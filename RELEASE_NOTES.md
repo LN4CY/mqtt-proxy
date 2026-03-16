@@ -6,18 +6,32 @@
 - **Zero-Setup Windows Deployment:** Added an automated PyInstaller build pipeline that compiles `mqtt-proxy` into a standalone, click-and-run `.exe` for Windows users.
   - No Python installation or virtual environment is required.
   - Windows AMD64 binaries are now automatically generated via GitHub Actions and attached directly to Releases.
-  - Updated configuration documentation to recommend this execution method for easiest integration with the MeshMonitor Desktop App.
   - **Subprocess-Ready:** The executable is specially configured to force line-buffered `stdout` and `stderr` streams using `utf-8` encoding. This prevents buffering lags and `cp1252` encoding crashes when embedded and executed natively by external tools or desktop apps on Windows.
+  - Updated configuration documentation to recommend this execution method for easiest integration with the MeshMonitor Desktop App.
+
+### Version Tracking & Identification
+- **Single Source of Truth:** Introduced `version.py` to manage the application version globally.
+- **Improved Visibility:**
+  - The binary version is now printed in the startup logs: `🚀 MQTT Proxy v1.5.0 starting...`.
+  - Added a `--version` flag to the CLI for quick verification.
+  - Added a version tag to the `README.md` for consistent project tracking.
 
 ### Command-Line Interface (CLI) Arguments
 - **Argparse Support:** The proxy now fully supports standard command-line flags to configure connection settings directly on launch.
   - Supported execution flags: `--interface`, `--tcp-host`, `--tcp-port`, `--serial-port`, `--log-level`, and `--version`.
   - Backwards-compatible: Existing environment variables and `.env` files still function normally as fallbacks for any omitted flags.
+
 ## 📦 Dependencies
 - **Bump Meshtastic to 2.7.8**: Upgraded python `meshtastic` dependency to the latest `2.7.8` version for compatibility with the newest firmware module configs (e.g. Traffic Management and StatusMessage).
 
-## 🛠️ Infrastructure
-- **CI/CD Fix**: Fixed the GitHub Actions Docker build workflow trying to push images to GHCR during Pull Requests, which caused permission errors.
+## 🛠️ Infrastructure & CI/CD
+- **Docker Build Fixes**:
+  - Fixed a missing build context issue where `version.py` was not copied into the container, preventing the proxy from launching.
+  - Enabled multi-arch (AMD64/Arm64/Armv7) Docker image pushes for internal Pull Requests, allowing real-time testing on devices like Raspberry Pi.
+- **Workflow Optimizations**:
+  - Fixed a "double build" issue in CI by removing redundant triggers on feature branches.
+  - Resolved `WinError 10106` by setting the PyInstaller runtime temporary directory to `%LOCALAPPDATA%\Temp`.
+  - Added detailed **"Releasing New Versions"** documentation to guide developers through PR-safe tagging workflows on protected branches.
 
 ## 🧹 Refactoring
 - **Simplify Echo Bypass**: Cached prefixed node ID and cleaned up the `_on_message` boolean logic structure. Thank you @NearlCrews!
