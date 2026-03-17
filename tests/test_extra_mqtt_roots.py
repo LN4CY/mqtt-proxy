@@ -118,3 +118,90 @@ class TestExtraMqttRootsSubscription:
         handler._on_connect(mock_client, None, None, 5)
 
         mock_client.subscribe.assert_not_called()
+
+
+class TestExtraRootCrosstalkPrevention:
+    """Test that extra-root packets for node channels are dropped."""
+
+    def _make_handler(self, extra_roots, node_channels):
+        """Create an MQTTHandler with extra roots and node channel names."""
+        from handlers.mqtt import MQTTHandler
+
+        config = MagicMock()
+        config.extra_mqtt_roots = extra_roots
+        config.mqtt_forward_retained = False
+        handler = MQTTHandler(config, "1234abcd")
+
+        node_cfg = MagicMock()
+        node_cfg.enabled = True
+        node_cfg.address = "mqtt.example.com"
+        node_cfg.port = 1883
+        node_cfg.tlsEnabled = False
+        node_cfg.username = "user"
+        node_cfg.password = "pass"
+        node_cfg.root = "msh/US/MI"
+        handler.configure(node_cfg)
+        handler.node_channel_names = node_channels
+
+        return handler
+
+    def _make_message(self, topic, payload=b"\x00" * 20):
+        msg = MagicMock()
+        msg.topic = topic
+        msg.payload = payload
+        msg.retain = False
+        return msg
+
+    def test_extra_root_shared_channel_dropped(self):
+        """Packet from extra root on a node channel is dropped."""
+        handler = self._make_handler(["msh/US/OH"], {"LongFast", "Michigan"})
+        handler.on_message_callback = MagicMock()
+
+        handler._on_message(None, None, self._make_message("msh/US/OH/2/e/LongFast/!abcd1234"))
+
+        handler.on_message_callback.assert_not_called()
+
+    def test_extra_root_unknown_channel_forwarded(self):
+        """Packet from extra root on a channel NOT on the node is forwarded."""
+        handler = self._make_handler(["msh/US/OH"], {"LongFast", "Michigan"})
+        handler.on_message_callback = MagicMock()
+
+        handler._on_message(None, None, self._make_message("msh/US/OH/2/e/OHEmergency/!abcd1234"))
+
+        handler.on_message_callback.assert_called_once()
+
+    def test_own_root_never_filtered(self):
+        """Packets from the node's own root are never filtered, even for node channels."""
+        handler = self._make_handler(["msh/US/OH"], {"LongFast", "Michigan"})
+        handler.on_message_callback = MagicMock()
+
+        handler._on_message(None, None, self._make_message("msh/US/MI/2/e/LongFast/!abcd1234"))
+
+        handler.on_message_callback.assert_called_once()
+
+    def test_no_node_channels_no_filtering(self):
+        """If node_channel_names is empty, no filtering occurs."""
+        handler = self._make_handler(["msh/US/OH"], set())
+        handler.on_message_callback = MagicMock()
+
+        handler._on_message(None, None, self._make_message("msh/US/OH/2/e/LongFast/!abcd1234"))
+
+        handler.on_message_callback.assert_called_once()
+
+    def test_no_extra_roots_no_filtering(self):
+        """If no extra roots configured, no filtering occurs."""
+        handler = self._make_handler([], {"LongFast"})
+        handler.on_message_callback = MagicMock()
+
+        handler._on_message(None, None, self._make_message("msh/US/MI/2/e/LongFast/!abcd1234"))
+
+        handler.on_message_callback.assert_called_once()
+
+    def test_malformed_topic_forwarded(self):
+        """Malformed topic without channel name is forwarded (safe default)."""
+        handler = self._make_handler(["msh/US/OH"], {"LongFast"})
+        handler.on_message_callback = MagicMock()
+
+        handler._on_message(None, None, self._make_message("msh/US/OH/2/e"))
+
+        handler.on_message_callback.assert_called_once()

@@ -32,6 +32,7 @@ class MQTTHandler:
         
         self.prefixed_node_id = f"!{node_id}" if node_id else None
         self.current_mqtt_cfg = None
+        self.node_channel_names = set()  # Channel names on the node, for extra-root filtering
 
     def configure(self, node_mqtt_config):
         """Configure the MQTT client based on node settings."""
@@ -242,11 +243,36 @@ class MQTTHandler:
                 logger.debug(f"⏭️ Skipping retained MQTT message: {message.topic}")
                 return
               
+            # Extra-root crosstalk prevention: don't forward packets from extra roots
+            # if the channel is also configured on the node (node would rebroadcast on RF)
+            if self.node_channel_names and self.mqtt_root:
+                extra_roots = getattr(self.config, 'extra_mqtt_roots', [])
+                if extra_roots:
+                    is_extra_root = False
+                    for extra_root in extra_roots:
+                        if message.topic.startswith(f"{extra_root}/"):
+                            if not message.topic.startswith(f"{self.mqtt_root}/"):
+                                is_extra_root = True
+                                break
+                    if is_extra_root:
+                        # Parse channel name from topic: {root}/2/e/{channelName}/{nodeId}
+                        parts = message.topic.split("/")
+                        # Find channel name: it's after the /2/e/ segment
+                        try:
+                            e_idx = parts.index("e")
+                            if e_idx + 1 < len(parts):
+                                channel_name = parts[e_idx + 1]
+                                if channel_name in self.node_channel_names:
+                                    logger.debug("🛡️ Dropping extra-root packet for node channel '%s': %s", channel_name, message.topic)
+                                    return
+                        except (ValueError, IndexError):
+                            pass  # Malformed topic, forward anyway
+
             self.last_activity = time.time()
             self.rx_count += 1
-            
+
             logger.info("📥 MQTT->Node: Topic=%s Size=%d bytes Retained=%s", message.topic, len(message.payload), message.retain)
-            
+
             if self.on_message_callback:
                 self.on_message_callback(message.topic, message.payload, message.retain)
                 

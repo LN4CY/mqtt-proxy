@@ -164,9 +164,34 @@ class MQTTProxy:
             logger.info("🌐 Initializing MQTT Handler for node !%s...", node_id)
             self.mqtt_handler = MQTTHandler(cfg, node_id, self.on_mqtt_message_to_radio, deduplicator=self.deduplicator)
             self.mqtt_handler.configure(node.moduleConfig.mqtt)
+
+            # Extract node channel names for extra-root crosstalk prevention
+            self.mqtt_handler.node_channel_names = self._get_node_channel_names(node)
+            if self.mqtt_handler.node_channel_names:
+                logger.info("📋 Node channels for extra-root filtering: %s", self.mqtt_handler.node_channel_names)
+
             self.mqtt_handler.start()
         else:
             logger.warning("⚠️ No MQTT configuration found on node !%s!", node_id)
+
+    @staticmethod
+    def _get_node_channel_names(node):
+        """Extract channel names from the node's channel list."""
+        names = set()
+        try:
+            if not hasattr(node, 'channels') or not node.channels:
+                return names
+            for ch in node.channels:
+                if ch.role == 0:  # DISABLED
+                    continue
+                name = ch.settings.name if ch.settings and ch.settings.name else None
+                if not name and ch.role == 1:  # PRIMARY with empty name defaults to modem preset
+                    name = "LongFast"  # Most common default
+                if name:
+                    names.add(name)
+        except Exception as e:
+            logger.warning("⚠️ Failed to read node channel names: %s", e)
+        return names
 
     def on_connection_lost(self, interface, **kwargs):
         """Callback when connection to radio is lost."""
