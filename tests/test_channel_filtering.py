@@ -36,7 +36,7 @@ class TestChannelFiltering:
         assert proxy._extract_channel_from_topic("msh/2/e/LongFast/!12345678") == "LongFast"
         assert proxy._extract_channel_from_topic("msh/2/e/MyChannel/!abcd") == "MyChannel"
         assert proxy._extract_channel_from_topic("other/topic") == None
-        assert proxy._extract_channel_from_topic("msh/1/e/LongFast") == "LongFast"
+        assert proxy._extract_channel_from_topic("msh/1/e/LongFast/!abcd") == "LongFast"
 
     def test_downlink_filtering(self):
         proxy = MQTTProxy()
