@@ -92,6 +92,8 @@ BLE support requires custom implementation using the `bleak` library. See the [m
 |----------|------|---------|-------------|
 | `CONFIG_WAIT_TIMEOUT` | integer | `60` | Max time to wait for node config (seconds) |
 | `POLL_INTERVAL` | integer | `1` | Config polling interval (seconds) |
+| `EXTRA_MQTT_ROOTS` | string | `""` | Comma-separated list of roots with optional prefixes for Virtual Channels (e.g. `msh/US/OH:OH, msh/US/CA:CA`) |
+
 
 ### Health Check Settings
  
@@ -117,6 +119,26 @@ BLE support requires custom implementation using the `bleak` library. See the [m
 > 2. **Connection Lost Watchdog**:
 >    - If the Meshtastic library reports a "Connection Lost" event (e.g., DNS resolution failure `[Errno -2]`), the proxy starts a 60-second timer.
 >    - If the connection is not re-established within that 60 seconds, the proxy will **exit immediately** to force a restart.
+
+### Extra MQTT Roots (Virtual Channels)
+
+Monitor encrypted traffic from additional regions beyond your primary root topic **without causing RF crosstalk**.
+
+**Configuration:**
+```env
+EXTRA_MQTT_ROOTS=msh/US/OH, msh/US/CA:California
+```
+
+When configured, the proxy automatically subscribes to `{root}/2/e/#` for each specified root in addition to your node's primary root. 
+
+**Topic Rewriting (Virtual Channels)**:
+To prevent "crosstalk" (where downloading Ohio's `LongFast` traffic inadvertently causes your local Michigan USB radio to broadcast it over RF), the proxy utilizes a **Virtual Channel** mapping.
+
+If a packet arrives from an extra root, its channel name is rewritten on-the-fly to include a prefix:
+- `msh/US/OH` defaults to the prefix `OH` ➔ `OH-LongFast`
+- `msh/US/CA:California` uses custom prefix `California` ➔ `California-LongFast`
+
+By rewriting the channel name to a "Virtual Channel" (e.g., `OH-LongFast`), your local USB radio ignores it. However, if you are using MeshMonitor's Channel Database, the encrypted payload is successfully decrypted, allowing you to seamlessly monitor cross-region traffic!
 
 ## Meshtastic Node Configuration
 
