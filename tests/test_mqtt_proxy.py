@@ -19,6 +19,13 @@ class MockProxy:
         self.last_radio_activity = 0
         self.deduplicator = MagicMock()
 
+    def _extract_channel_from_topic(self, topic):
+        return "LongFast"
+
+    def _is_channel_uplink_enabled(self, channel_name):
+        return True
+
+
 class TestMQTTHandler:
     
     @patch('paho.mqtt.client.Client')

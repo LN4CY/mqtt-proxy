@@ -18,6 +18,12 @@ class MockProxy:
         self.deduplicator = MagicMock()
         self.myNodeNum = 0x12345678
 
+    def _extract_channel_from_topic(self, topic):
+        return "LongFast"
+
+    def _is_channel_uplink_enabled(self, channel_name):
+        return True
+
 class ParentInterface:
     def _handleFromRadio(self, fr):
         pass

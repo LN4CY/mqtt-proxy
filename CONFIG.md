@@ -153,6 +153,20 @@ meshtastic --set mqtt.password mypass
 > **Why `proxy_to_client_enabled` Matters:**
 > When the firmware has `proxy_to_client_enabled` turned on, it fundamentally changes how it confirms message delivery. It stops generating "Implicit ACKs" automatically. Instead, it relies on the MQTT Broker echoing the message back to the Proxy. If the Proxy fails to forward this echo (as was a bug in previous versions), the firmware will hit a `MAX_RETRANSMIT` timeout (approx 45 seconds). In MeshMonitor, this results in a "Red X" (Failed delivery status) for Channel Broadcasts, even if the payload successfully reached the broker!
 
+### Channel Configuration (Uplink/Downlink Filtering)
+
+The proxy automatically respects your node's channel settings for MQTT filtering. You do **not** need to configure these in the proxy itself; it reads them directly from the connected Meshtastic device.
+
+For each configured channel on your node:
+- If `uplink_enabled` is **false**, the proxy will drop messages received from the mesh on that channel instead of sending them to the MQTT broker.
+- If `downlink_enabled` is **false**, the proxy will ignore messages received from the MQTT broker destined for that channel instead of transmitting them to the mesh.
+
+You can configure these settings using the Meshtastic CLI:
+```bash
+meshtastic --ch-index 0 --set uplink_enabled false
+meshtastic --ch-index 0 --set downlink_enabled false
+```
+
 ## Docker Compose Configuration
 
 ### Basic Setup

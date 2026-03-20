@@ -20,6 +20,7 @@ A production-ready MQTT proxy for Meshtastic devices that enables bidirectional 
 - ✅ **SSL/TLS Support** - Auto-configuration for secure brokers (matches iOS behavior)
 - ✅ **Traffic Optimization** - Smart subscription strategy (`msh/2/e/#`) to prevent serial link saturation
 - ✅ **Hammering Prevention** - Correctly flags retained messages to avoid `NO_RESPONSE` storms
+- ✅ **Channel Filtering** - Respects `uplink_enabled` and `downlink_enabled` channel settings
 - ✅ **MeshMonitor Compatible** - Seamless integration with MeshMonitor and other tools
 
 **Note:** BLE interface is not currently supported. Use TCP or Serial interfaces.
