@@ -71,6 +71,14 @@ class MQTTProxyMixin:
                         except Exception as e:
                             logger.warning(f"⚠️ Failed to track node/packet: {e}")
 
+                        # 3. Check for uplink_enabled for this channel
+                        channel_name = self.proxy._extract_channel_from_topic(mqtt_msg.topic)
+                        if channel_name:
+                            if not self.proxy._is_channel_uplink_enabled(channel_name):
+                                logger.info("🛡️ Dropping Node->MQTT message (uplink_enabled=False for channel '%s'): %s", 
+                                            channel_name, mqtt_msg.topic)
+                                return
+
                         self.proxy.mqtt_handler.publish(mqtt_msg.topic, mqtt_msg.data, retain=mqtt_msg.retained)
                 
                 # 3. Handle Implicit ACKs (ROUTING_APP errors with error_reason=NONE)

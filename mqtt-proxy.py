@@ -180,8 +180,85 @@ class MQTTProxy:
 
     def on_mqtt_message_to_radio(self, topic, payload, retained):
         """Callback from MQTT Handler to send message to Radio."""
+        # 1. Extract channel name from topic
+        channel_name = self._extract_channel_from_topic(topic)
+        
+        # 2. Check if downlink is enabled for this channel
+        if channel_name:
+            if not self._is_channel_downlink_enabled(channel_name):
+                logger.info("🛡️ Dropping MQTT->Node message (downlink_enabled=False for channel '%s'): %s", 
+                            channel_name, topic)
+                return
+        
         # Queue the message instead of sending directly
         self.message_queue.put(topic, payload, retained)
+
+    def _extract_channel_from_topic(self, topic):
+        """
+        Extract the channel name from a Meshtastic MQTT topic.
+        Format: <root>/2/e/<channel_name>/...
+        """
+        try:
+            parts = topic.split('/')
+            if len(parts) >= 4 and parts[1] == '2' and parts[2] == 'e':
+                return parts[3]
+        except Exception:
+            pass
+        return None
+
+    def _is_channel_downlink_enabled(self, channel_name):
+        """Check if a specific channel has downlink enabled."""
+        if not self.iface or not self.iface.localNode:
+            return True # Conservative default
+            
+        # Case-insensitive comparison because MQTT topics might vary
+        search_name = channel_name.lower()
+        
+        for i, ch in enumerate(self.iface.localNode.channels):
+            if ch.role == 0: # DISABLED
+                continue
+                
+            # Determine channel name
+            ch_name = ch.settings.name
+            if not ch_name:
+                if i == 0:
+                    ch_name = "LongFast"
+                else:
+                    ch_name = f"CH{i}"
+            
+            if ch_name.lower() == search_name:
+                # We found the channel, check its settings
+                # Note: Meshtastic protobuf might use default values if field is not present
+                enabled = getattr(ch.settings, "downlink_enabled", True)
+                return enabled
+                
+        # If channel not found, we assume it's okay? 
+        # Or should we be strict? 
+        # For now, let's be strict: if we can't find the channel, we don't know it's allowed.
+        # But wait, 'msh/2/e/LongFast' is the most common.
+        logger.debug("⚠️ Channel '%s' not found in node config, allowing by default", channel_name)
+        return True
+
+    def _is_channel_uplink_enabled(self, channel_name):
+        """Check if a specific channel has uplink enabled."""
+        if not self.iface or not self.iface.localNode:
+            return True
+            
+        search_name = channel_name.lower()
+        
+        for i, ch in enumerate(self.iface.localNode.channels):
+            if ch.role == 0: continue
+            
+            ch_name = ch.settings.name
+            if not ch_name:
+                ch_name = "LongFast" if i == 0 else f"CH{i}"
+                
+            if ch_name.lower() == search_name:
+                enabled = getattr(ch.settings, "uplink_enabled", True)
+                return enabled
+                
+        logger.debug("⚠️ Channel '%s' not found in node config (uplink), allowing by default", channel_name)
+        return True
 
     def _perform_health_check(self, current_time):
         """Check system health."""
