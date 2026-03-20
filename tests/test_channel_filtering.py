@@ -36,7 +36,7 @@ class TestChannelFiltering:
         assert proxy._extract_channel_from_topic("msh/2/e/LongFast/!12345678") == "LongFast"
         assert proxy._extract_channel_from_topic("msh/2/e/MyChannel/!abcd") == "MyChannel"
         assert proxy._extract_channel_from_topic("other/topic") == None
-        assert proxy._extract_channel_from_topic("msh/1/e/LongFast") == None
+        assert proxy._extract_channel_from_topic("msh/1/e/LongFast") == "LongFast"
 
     def test_downlink_filtering(self):
         proxy = MQTTProxy()
@@ -84,8 +84,9 @@ class TestChannelFiltering:
         # Mocking the parent class for super() call
         with patch('meshtastic.tcp_interface.TCPInterface._handleFromRadio'):
             # 1. Test LongFast (Uplink disabled)
+            TEST_ROOT = "msh/US/MI"
             from_radio = mesh_pb2.FromRadio()
-            from_radio.mqttClientProxyMessage.topic = "msh/2/e/LongFast/!123"
+            from_radio.mqttClientProxyMessage.topic = f"{TEST_ROOT}/2/e/LongFast/!123"
             from_radio.mqttClientProxyMessage.data = b"payload"
             
             interface._handleFromRadio(from_radio)

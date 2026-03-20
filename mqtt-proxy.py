@@ -200,9 +200,10 @@ class MQTTProxy:
         """
         try:
             parts = topic.split('/')
-            if len(parts) >= 4 and parts[1] == '2' and parts[2] == 'e':
-                return parts[3]
-        except Exception:
+            e_idx = parts.index('e')
+            if e_idx + 1 < len(parts):
+                return parts[e_idx + 1]
+        except (ValueError, IndexError, Exception):
             pass
         return None
 
