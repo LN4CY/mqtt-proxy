@@ -200,10 +200,11 @@ class MQTTProxy:
         """
         try:
             parts = topic.split('/')
-            e_idx = parts.index('e')
-            if e_idx + 1 < len(parts):
-                return parts[e_idx + 1]
-        except (ValueError, IndexError, Exception):
+            # Meshtastic topic format: <root>/<version>/<type>/<channel>/<node_id>
+            # type is usually 'e' (encrypted) or 'c' (cleartext)
+            if len(parts) >= 4 and parts[-3] in ('e', 'c'):
+                return parts[-2]
+        except Exception:
             pass
         return None
 

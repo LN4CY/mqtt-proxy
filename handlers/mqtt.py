@@ -253,17 +253,13 @@ class MQTTHandler:
                         continue
                         
                     parts = modified_topic.split("/")
-                    try:
-                        e_idx = parts.index("e")
-                        if e_idx + 1 < len(parts):
-                            channel_name = parts[e_idx + 1]
-                            new_channel_name = f"{er_prefix}-{channel_name}"
-                            parts[e_idx + 1] = new_channel_name
-                            modified_topic = "/".join(parts)
-                            logger.debug("🔄 Virtual Channel Rewrite: %s -> %s for extra root %s", 
-                                         channel_name, new_channel_name, er_root)
-                    except (ValueError, IndexError):
-                        pass
+                    if len(parts) >= 4 and parts[-3] in ("e", "c"):
+                        channel_name = parts[-2]
+                        new_channel_name = f"{er_prefix}-{channel_name}"
+                        parts[-2] = new_channel_name
+                        modified_topic = "/".join(parts)
+                        logger.debug("🔄 Virtual Channel Rewrite: %s -> %s for extra root %s", 
+                                     channel_name, new_channel_name, er_root)
                     break
 
             self.last_activity = time.time()
