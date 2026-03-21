@@ -2,7 +2,7 @@
 
 A production-ready MQTT proxy for Meshtastic devices that enables bidirectional message forwarding between Meshtastic nodes and MQTT brokers. Supports TCP and Serial interface connections with a clean factory pattern architecture.
 
-**Version**: 1.6.0
+**Version**: 1.6.1
 
 ## Features
 
