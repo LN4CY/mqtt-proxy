@@ -140,6 +140,9 @@ If a packet arrives from an extra root, its channel name is rewritten on-the-fly
 
 By rewriting the channel name to a "Virtual Channel" (e.g., `OH-LongFast`), your local USB radio ignores it. However, if you are using MeshMonitor's Channel Database, the encrypted payload is successfully decrypted, allowing you to seamlessly monitor cross-region traffic!
 
+> [!TIP]
+> **Loop Prevention & MeshMonitor Architecture:** Virtual Channels are intentionally sent to the proxy's transmission queue so they can be received natively over the socket connection by MeshMonitor (which acts as a Virtual Node Server). When MeshMonitor echoes the packed back to the proxy, the proxy automatically **drops** the Virtual Channel instead of republishing it. This breaks the infinite MQTT loop while keeping MeshMonitor informed!
+
 ## Meshtastic Node Configuration
 
 The Meshtastic node must have MQTT properly configured for the proxy to work.

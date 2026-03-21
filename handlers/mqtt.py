@@ -255,11 +255,13 @@ class MQTTHandler:
                     parts = modified_topic.split("/")
                     if len(parts) >= 4 and parts[-3] in ("e", "c"):
                         channel_name = parts[-2]
-                        new_channel_name = f"{er_prefix}-{channel_name}"
-                        parts[-2] = new_channel_name
-                        modified_topic = "/".join(parts)
-                        logger.debug("🔄 Virtual Channel Rewrite: %s -> %s for extra root %s", 
-                                     channel_name, new_channel_name, er_root)
+                        # Prevent double-prefixing if we receive our own re-published message
+                        if not channel_name.startswith(f"{er_prefix}-"):
+                            new_channel_name = f"{er_prefix}-{channel_name}"
+                            parts[-2] = new_channel_name
+                            modified_topic = "/".join(parts)
+                            logger.debug("🔄 Virtual Channel Rewrite: %s -> %s for extra root %s", 
+                                         channel_name, new_channel_name, er_root)
                     break
 
             self.last_activity = time.time()

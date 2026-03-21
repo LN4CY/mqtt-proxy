@@ -116,6 +116,7 @@ class TestChannelFiltering:
         proxy.iface = MagicMock()
         proxy.iface.localNode.channels = []
         
-        # Should allow by default if channel not found
+        # Downlink is allowed by default so Virtual Channels reach MeshMonitor
         assert proxy._is_channel_downlink_enabled("Unknown") == True
-        assert proxy._is_channel_uplink_enabled("Unknown") == True
+        # Uplink MUST BE DROPPED by default to prevent infinite echo loops
+        assert proxy._is_channel_uplink_enabled("Unknown") == False
