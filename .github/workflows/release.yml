@@ -79,12 +79,18 @@ jobs:
               f.write(''.join(notes).strip())
           "
 
-      - name: Create Release
+      - name: Create or Update Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Use gh CLI for atomic creation to satisfy "Immutable Release" rules
-          gh release create "$GITHUB_REF_NAME" \
-            --title "$GITHUB_REF_NAME" \
-            --notes-file latest_notes.md \
-            release-assets/mqtt-proxy-windows-amd64.exe
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists. Uploading asset..."
+            gh release upload "$GITHUB_REF_NAME" release-assets/mqtt-proxy-windows-amd64.exe --clobber
+          else
+            echo "Creating new release $GITHUB_REF_NAME..."
+            gh release create "$GITHUB_REF_NAME" \
+              --title "$GITHUB_REF_NAME" \
+              --notes-file latest_notes.md \
+              release-assets/mqtt-proxy-windows-amd64.exe
+          fi
