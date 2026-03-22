@@ -149,9 +149,17 @@ When a packet arrives from an extra root, the proxy performs a two-part rewrite 
 
 Because the proxy only mutates the target hash, the **encrypted payload bytes and the original `channel_id` string** are left entirely untouched.
 
-This means MeshMonitor receives exactly the original packet data and original channel name natively. If your MeshMonitor Channel Database is already configured to decrypt the remote channel (e.g. you have your standard `LongFast` entry), **it will automatically decrypt virtual channel traffic with zero additional configuration.**
+This means MeshMonitor receives exactly the original packet data and original channel name natively. 
 
-It works perfectly out of the box — even if you use "Enforce Channel Name Validation", because the `channel_id` string inside the protobuf is meticulously preserved.
+> [!CAUTION]
+> **Decryption Required:** Because the radio hardware cannot decrypt virtual channel packets, MeshMonitor must decrypt them itself. **You must still add the original channel name and PSK to your MeshMonitor Channel Database.** 
+>
+> For example, if you are monitoring Ohio's `LongFast` traffic, you just need a standard entry for `LongFast` with the `AQ==` key in your DB.
+
+**What if multiple channels use the same key?**
+By default, MeshMonitor matches packets purely by their PSK hash. If you have multiple channels that share the exact same key (e.g. `LongFast` and an extra `BaseCamp` channel both use `AQ==`), MeshMonitor might display the packet under the wrong name. 
+
+If this happens, you **must enable "Enforce Channel Name Validation"** in MeshMonitor's settings. Because the proxy meticulously preserves the original `channel_id` string inside the protobuf, MeshMonitor will seamlessly use both the key AND the original name to match the correct database entry, perfectly separating channels that share a key. You still do not need to create special `NC-` prefixed names.
 
 > **Monitoring only:** Virtual Channels are strictly read-only. Because the hardware radio does not know about virtual channels, there is no way to send a reply on a virtual channel. This is by design — the feature is intended for safe, passive cross-region monitoring without bridging two networks.
 
