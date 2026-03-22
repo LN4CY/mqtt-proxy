@@ -140,34 +140,19 @@ When a packet arrives from an extra root, the proxy performs a two-part rewrite 
 1. **Topic rewrite:** The MQTT topic channel name is prefixed with the alias.
    - `msh/US/NC/2/e/LongFast/!abc123` → `msh/US/2/e/NC-LongFast/!abc123`
 
-2. **Payload mutation (crosstalk prevention):** The proxy also mutates two fields inside the `ServiceEnvelope` protobuf payload:
-   - `channel_id` string → `NC-LongFast` (the virtual channel name)
-   - `packet.channel` integer (PSK hash) → a synthetic hash unique to the virtual channel name
+2. **Payload mutation (crosstalk prevention):** The proxy mutates the `packet.channel` field inside the `ServiceEnvelope` protobuf.
+   - `packet.channel` integer (PSK hash) → a synthetic hash derived from the virtual channel name
 
-   The radio firmware uses this PSK hash to look up its decryption key. Since no local channel has the synthetic hash configured, the radio **cannot decrypt the packet and will not rebroadcast it over RF** — completely preventing cross-region crosstalk. The encrypted payload bytes themselves are untouched.
+   The radio firmware uses this PSK hash to look up its decryption key. Since no local channel has the synthetic hash configured, the radio **cannot decrypt the packet and will not rebroadcast it over RF** — completely preventing cross-region crosstalk.
 
-**MeshMonitor Channel Database Setup:**
+**MeshMonitor Compatibility:**
 
-Because the radio cannot decrypt virtual channel packets, MeshMonitor must be configured to decrypt them independently using its **Channel Database**.
+Because the proxy only mutates the target hash, the **encrypted payload bytes and the original `channel_id` string** are left entirely untouched.
 
-MeshMonitor matches packets by **PSK key**, not by channel name — it tries every configured key until one decrypts successfully. This works automatically if each channel has a unique PSK.
+This means MeshMonitor receives exactly the original packet data and original channel name natively. If your MeshMonitor Channel Database is already configured to decrypt the remote channel (e.g. you have your standard `LongFast` entry), **it will automatically decrypt virtual channel traffic with zero additional configuration.**
 
-**However**, if a virtual channel shares the same PSK as a local channel (e.g. both `NC-LongFast` and your local `LongFast` use `AQ==`), MeshMonitor cannot distinguish between them by key alone. In this case:
+It works perfectly out of the box — even if you use "Enforce Channel Name Validation", because the `channel_id` string inside the protobuf is meticulously preserved.
 
-1. Enable **"Enforce Channel Name Validation"** in MeshMonitor settings.
-   - With this enabled, MeshMonitor also checks the `channel_id` field in the protobuf to match the key lookup. Since the proxy correctly sets `channel_id` to the virtual channel name (e.g. `NC-LongFast`), MeshMonitor can now distinguish virtual channels from local channels even with a shared key.
-2. Add a named entry in the Channel Database: `NC-LongFast → AQ==`.
-
-| Scenario | MeshMonitor setup needed |
-|---|---|
-| Virtual channel has a **unique PSK** (e.g. custom private channel) | Just ensure the PSK is in the Channel Database — any name works |
-| Virtual channel shares PSK with a local channel (e.g. `LongFast → AQ==`) | Enable "Enforce Channel Name Validation" + add `NC-LongFast → AQ==` entry |
-
-> [!TIP]
-> If you already have `LongFast → AQ==` in your Channel Database and your virtual channels all use unique PSKs, no additional MeshMonitor configuration is needed — decryption works automatically.
-
-
-> [!NOTE]
 > **Monitoring only:** Virtual Channels are strictly read-only. Because the hardware radio does not know about virtual channels, there is no way to send a reply on a virtual channel. This is by design — the feature is intended for safe, passive cross-region monitoring without bridging two networks.
 
 > [!IMPORTANT]
