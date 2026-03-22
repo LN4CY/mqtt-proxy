@@ -150,20 +150,21 @@ When a packet arrives from an extra root, the proxy performs a two-part rewrite 
 
 Because the radio cannot decrypt virtual channel packets, MeshMonitor must be configured to decrypt them independently using its **Channel Database**.
 
-MeshMonitor matches packets by **PSK key**, not by channel name — it tries every configured key until one decrypts successfully. This means:
+MeshMonitor matches packets by **PSK key**, not by channel name — it tries every configured key until one decrypts successfully. This works automatically if each channel has a unique PSK.
 
-- The name you give the entry in the Channel Database is just for **display grouping** — it does not need to match the virtual channel name exactly.
-- You only need to ensure the **original channel PSK** is present in your Channel Database.
+**However**, if a virtual channel shares the same PSK as a local channel (e.g. both `NC-LongFast` and your local `LongFast` use `AQ==`), MeshMonitor cannot distinguish between them by key alone. In this case:
 
-For each remote channel you want to monitor, simply add its PSK to the MeshMonitor Channel Database using any name you like:
+1. Enable **"Enforce Channel Name Validation"** in MeshMonitor settings.
+   - With this enabled, MeshMonitor also checks the `channel_id` field in the protobuf to match the key lookup. Since the proxy correctly sets `channel_id` to the virtual channel name (e.g. `NC-LongFast`), MeshMonitor can now distinguish virtual channels from local channels even with a shared key.
+2. Add a named entry in the Channel Database: `NC-LongFast → AQ==`.
 
-| Display Name (your choice) | PSK to enter |
+| Scenario | MeshMonitor setup needed |
 |---|---|
-| `NC-LongFast` (or any name) | `AQ==` (standard LongFast default key) |
-| `NC-MyChannel` (or any name) | The original PSK for `MyChannel` on the remote network |
+| Virtual channel has a **unique PSK** (e.g. custom private channel) | Just ensure the PSK is in the Channel Database — any name works |
+| Virtual channel shares PSK with a local channel (e.g. `LongFast → AQ==`) | Enable "Enforce Channel Name Validation" + add `NC-LongFast → AQ==` entry |
 
 > [!TIP]
-> If you already have a channel with the correct PSK in your Channel Database (e.g. you already have `LongFast → AQ==`), no additional configuration is needed — MeshMonitor will automatically match and decrypt virtual channel traffic using that existing entry.
+> If you already have `LongFast → AQ==` in your Channel Database and your virtual channels all use unique PSKs, no additional MeshMonitor configuration is needed — decryption works automatically.
 
 
 > [!NOTE]
