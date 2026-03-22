@@ -1,26 +1,20 @@
 # Release v1.6.2
 
-## Virtual Channels & Extra MQTT Roots Stabilization
-This release brings critical stability and parsing improvements to the `EXTRA_MQTT_ROOTS` (Virtual Channels) feature introduced in v1.6.0. 
+This release introduces two major new features to handle advanced broker routing and to improve fidelity with Meshtastic node configurations: **Virtual Channels (Multi-Root)** and **Per-Channel Uplink/Downlink Filtering**.
 
-### ✨ New Features
-* **Per-Channel Uplink/Downlink Filtering** (`abbd6a1`, PR #37)
-  * The proxy now fully respects per-channel `uplink_enabled` and `downlink_enabled` configurations defined on your physical Meshtastic node. Only packets on channels explicitly permitted for uplink/downlink will be forwarded between the broker and the radio queue.
+## ✨ New Features
 
-### 🐛 Bug Fixes
-* **Fix: Infinite Echo Loop Protection** (`0c845f5`)
-  * Implemented a strict default `False` uplink policy for unknown channels. 
-  * Prevents Virtual Channels seamlessly echoed back by `MeshMonitor` (or local node configurations) from triggering an infinite `proxy -> MeshMonitor -> MQTT -> proxy` transmission loop that ultimately flooded the local radio queue. 
-  * **Note:** The `downlink` policy remains `True` to allow safe, unidirectional cross-region listening.
-* **Fix: Sub-Topic Virtual Rewrite Bypass** (`5f7a53a`)
-  * Fixed an issue where Extra MQTT Roots defined as immediate sub-topics of the primary MQTT root (e.g., configuring `msh/US/NC` when the default root is `msh/US`) were silently skipped by the proxy's rewrite engine.
-  * The proxy now perfectly transforms incoming packets from matching sub-topics into accurate Virtual Channels (e.g., `NC-LongFast`) without erroneously dropping them.
-* **Fix: Docker Compose Quoted Configuration Drops** (`ee0937d`)
-  * Added defensive quote stripping directly into the Python `config.py` environment parser. 
-  * If a user intentionally or accidentally wraps their `EXTRA_MQTT_ROOTS` Docker Compose string in literal quotation marks (`"` or `'`), the proxy will cleanly consume the variable instead of injecting the quotation mark directly into the active Paho MQTT subscription path.
+### Virtual Channels & Extra MQTT Roots (PR #38)
+* **`EXTRA_MQTT_ROOTS` Configuration:** You can now configure the proxy to listen to multiple MQTT root topics simultaneously. This allows you to monitor and interact with additional roots seamlessly without complex external broker forwarding rules.
+* **Topic Rewriting:** Traffic from extra MQTT roots is automatically rewritten to appear as local "Virtual Channels" (e.g., matching the root name like `NC-LongFast`), preventing cross-talk while making remote region traffic accessible in standard clients such as MeshMonitor.
 
-### 📝 Documentation
-* Updated `CONFIG.md` and `README.md` `docker-compose.yml` code blocks to explicitly demonstrate non-quoted environment variables, protecting users from Docker string parsing quirks.
+### Per-Channel Uplink/Downlink Filtering (PR #37)
+* **Respect Node Configuration:** The proxy now fully parses and respects the per-channel `uplink_enabled` and `downlink_enabled` settings configured directly on your physical Meshtastic node. 
+* **Selective Forwarding:** Only packets on channels explicitly permitted for uplink or downlink will be forwarded between the MQTT broker and the local radio queue, saving serial bandwidth and perfectly matching the firmware's intended behavior.
+
+## 📝 Documentation
+* Documented the new channel-based filtering and extra MQTT roots features.
+* Updated configuration documentation (`CONFIG.md` and `README.md`) to clearly explain `EXTRA_MQTT_ROOTS`.
 
 ---
 
