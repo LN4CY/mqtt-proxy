@@ -131,6 +131,62 @@ class MQTTHandler:
                 return False
         return False
 
+    def _compute_virtual_channel_hash(self, channel_name):
+        """
+        Compute a synthetic PSK hash for a virtual channel name.
+        
+        Meshtastic firmware uses packet.channel (a uint32 PSK hash) to look up
+        the decryption key for incoming packets. By replacing the real hash with
+        a deterministic but synthetic value derived from the virtual channel name,
+        the radio will find no matching key and cannot decrypt or rebroadcast.
+        
+        The hash is intentionally kept in the range 200-254 to avoid colliding
+        with real channel hashes (LongFast=0, and most common values near 0).
+        """
+        h = 0
+        for b in channel_name.encode('utf-8'):
+            h = (h * 31 + b) & 0xFF
+        # Shift into 200-254 range to reduce collision likelihood with real channels
+        return 200 + (h % 55)
+
+    def _mutate_virtual_channel_payload(self, payload, new_channel_name):
+        """
+        Mutate ServiceEnvelope protobuf to rewrite channel identity fields.
+
+        Changes:
+          - envelope.channel_id  : string name → virtual channel name (e.g. 'NC-LongFast')
+          - packet.channel       : PSK hash    → synthetic hash unique to the virtual channel
+
+        The encrypted payload bytes (packet.encrypted) are left completely untouched.
+        MeshMonitor can still decrypt the message using the original key via its
+        Channel Database entry for the virtual channel name.
+
+        This prevents the radio firmware from matching its local PSK and rebroadcasting
+        the packet over RF, which would cause crosstalk between MQTT server regions.
+        """
+        try:
+            from meshtastic.protobuf import mqtt_pb2
+            envelope = mqtt_pb2.ServiceEnvelope()
+            envelope.ParseFromString(payload)
+
+            original_channel_id = envelope.channel_id
+            original_channel_hash = envelope.packet.channel
+
+            # Rewrite plain-text wrapper fields only
+            envelope.channel_id = new_channel_name
+            envelope.packet.channel = self._compute_virtual_channel_hash(new_channel_name)
+
+            mutated = envelope.SerializeToString()
+            logger.debug(
+                "🔒 Payload mutation: channel_id '%s'→'%s', packet.channel %d→%d",
+                original_channel_id, new_channel_name,
+                original_channel_hash, envelope.packet.channel
+            )
+            return mutated
+        except Exception as e:
+            logger.warning("⚠️ Failed to mutate virtual channel payload, using original: %s", e)
+            return payload
+
     def _on_connect(self, client, userdata, flags, rc, props=None):
         logger.info("✅ MQTT Connected with result code: %s", rc)
         if rc == 0:
@@ -243,6 +299,7 @@ class MQTTHandler:
                 return
               
             modified_topic = message.topic
+            modified_payload = message.payload
             
             # Virtual Channel mapping for Extra Roots
             extra_roots = getattr(self.config, 'extra_mqtt_roots', [])
@@ -260,17 +317,28 @@ class MQTTHandler:
                             new_channel_name = f"{er_prefix}-{channel_name}"
                             parts[-2] = new_channel_name
                             modified_topic = "/".join(parts)
-                            logger.debug("🔄 Virtual Channel Rewrite: %s -> %s for extra root %s", 
+                            # CRITICAL: Also mutate the protobuf payload to change the channel
+                            # identity fields (channel_id string + packet.channel PSK hash).
+                            # The radio firmware uses packet.channel (PSK hash) to look up
+                            # its decryption key. By replacing it with a synthetic hash that
+                            # no local radio has configured, the firmware cannot decrypt the
+                            # packet and will NOT rebroadcast it over RF.
+                            # The encrypted bytes are left untouched so MeshMonitor can still
+                            # decrypt using the original key via its Channel Database.
+                            modified_payload = self._mutate_virtual_channel_payload(
+                                message.payload, new_channel_name
+                            )
+                            logger.debug("🔄 Virtual Channel Rewrite: %s -> %s for extra root %s",
                                          channel_name, new_channel_name, er_root)
                     break
 
             self.last_activity = time.time()
             self.rx_count += 1
             
-            logger.info("📥 MQTT->Node: Topic=%s Size=%d bytes Retained=%s", modified_topic, len(message.payload), message.retain)
+            logger.info("📥 MQTT->Node: Topic=%s Size=%d bytes Retained=%s", modified_topic, len(modified_payload), message.retain)
             
             if self.on_message_callback:
-                self.on_message_callback(modified_topic, message.payload, message.retain)
+                self.on_message_callback(modified_topic, modified_payload, message.retain)
                 
         except Exception as e:
             logger.error("❌ Error handling MQTT message: %s", e)
