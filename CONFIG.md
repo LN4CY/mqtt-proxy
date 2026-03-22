@@ -150,21 +150,21 @@ When a packet arrives from an extra root, the proxy performs a two-part rewrite 
 
 Because the radio cannot decrypt virtual channel packets, MeshMonitor must be configured to decrypt them independently using its **Channel Database**.
 
-For each virtual channel you want to monitor in MeshMonitor, add an entry:
+MeshMonitor matches packets by **PSK key**, not by channel name — it tries every configured key until one decrypts successfully. This means:
 
-| Virtual Channel Name | Key to enter |
+- The name you give the entry in the Channel Database is just for **display grouping** — it does not need to match the virtual channel name exactly.
+- You only need to ensure the **original channel PSK** is present in your Channel Database.
+
+For each remote channel you want to monitor, simply add its PSK to the MeshMonitor Channel Database using any name you like:
+
+| Display Name (your choice) | PSK to enter |
 |---|---|
-| `NC-LongFast` | `AQ==` (standard LongFast default key) |
-| `NC-MyChannel` | The original PSK for `MyChannel` on the remote network |
-
-The virtual channel name is always `{ALIAS}-{ORIGINAL_CHANNEL_NAME}`, where `ALIAS` comes from your `EXTRA_MQTT_ROOTS` config.
+| `NC-LongFast` (or any name) | `AQ==` (standard LongFast default key) |
+| `NC-MyChannel` (or any name) | The original PSK for `MyChannel` on the remote network |
 
 > [!TIP]
-> **How to find virtual channel names:** Check the proxy logs (default `INFO` level). When a packet arrives from an extra root, you will see a line like:
-> ```
-> 🔄 Virtual Channel Rewrite: LongFast -> NC-LongFast (extra root: msh/US/NC)
-> ```
-> The virtual channel name (e.g. `NC-LongFast`) is exactly what to configure in MeshMonitor's Channel Database. Alternatively, the name is always `{ALIAS}-{ORIGINAL_CHANNEL_NAME}` based on your `EXTRA_MQTT_ROOTS` alias.
+> If you already have a channel with the correct PSK in your Channel Database (e.g. you already have `LongFast → AQ==`), no additional configuration is needed — MeshMonitor will automatically match and decrypt virtual channel traffic using that existing entry.
+
 
 > [!NOTE]
 > **Monitoring only:** Virtual Channels are strictly read-only. Because the hardware radio does not know about virtual channels, there is no way to send a reply on a virtual channel. This is by design — the feature is intended for safe, passive cross-region monitoring without bridging two networks.
