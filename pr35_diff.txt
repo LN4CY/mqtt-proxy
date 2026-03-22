@@ -1,0 +1,388 @@
+diff --git a/CONFIG.md b/CONFIG.md
+index c473424..7147567 100644
+--- a/CONFIG.md
++++ b/CONFIG.md
+@@ -92,6 +92,7 @@ BLE support requires custom implementation using the `bleak` library. See the [m
+ |----------|------|---------|-------------|
+ | `CONFIG_WAIT_TIMEOUT` | integer | `60` | Max time to wait for node config (seconds) |
+ | `POLL_INTERVAL` | integer | `1` | Config polling interval (seconds) |
++| `EXTRA_MQTT_ROOTS` | string | _(empty)_ | Comma-separated list of additional MQTT root topics to subscribe to (e.g., `msh/US/OH,msh/US/CA`). Enables monitoring traffic from other regions. |
+ 
+ ### Health Check Settings
+  
+@@ -118,6 +119,24 @@ BLE support requires custom implementation using the `bleak` library. See the [m
+ >    - If the Meshtastic library reports a "Connection Lost" event (e.g., DNS resolution failure `[Errno -2]`), the proxy starts a 60-second timer.
+ >    - If the connection is not re-established within that 60 seconds, the proxy will **exit immediately** to force a restart.
+ 
++### Extra MQTT Root Topics
++
++Monitor traffic from additional regions or communities beyond your node's configured MQTT root topic.
++
++**Use Case:** Your node is configured with `msh/US/MI` but you also want to monitor Ohio and California traffic.
++
++**Configuration:**
++```env
++EXTRA_MQTT_ROOTS=msh/US/OH,msh/US/CA
++```
++
++The proxy will subscribe to encrypted traffic (`{root}/2/e/#`) for each additional root topic. Packets are forwarded to MeshMonitor where they can be decrypted using Channel Database keys.
++
++**Notes:**
++- Duplicates of the node's own root topic are automatically ignored
++- This is read-only monitoring — the proxy does not publish to extra root topics
++- Requires the Channel Database in MeshMonitor to have the appropriate decryption keys
++
+ ## Meshtastic Node Configuration
+ 
+ The Meshtastic node must have MQTT properly configured for the proxy to work.
+diff --git a/config.py b/config.py
+index e64440b..1d4fad3 100644
+--- a/config.py
++++ b/config.py
+@@ -69,5 +69,10 @@ def get_setting(cli_arg, env_var, default_val):
+         # By default, skip retained messages to prevent startup floods with historical data
+         self.mqtt_forward_retained = os.environ.get("MQTT_FORWARD_RETAINED", "false").lower() == "true"
+ 
++        # Extra MQTT root topics for cross-region monitoring
++        # Comma-separated list, e.g. "msh/US/OH,msh/US/CA"
++        extra_roots_raw = os.environ.get("EXTRA_MQTT_ROOTS", "")
++        self.extra_mqtt_roots = [r.strip() for r in extra_roots_raw.split(",") if r.strip()]
++
+ # Global instance
+ cfg = Config()
+diff --git a/handlers/mqtt.py b/handlers/mqtt.py
+index c2740b0..bf3d6b6 100644
+--- a/handlers/mqtt.py
++++ b/handlers/mqtt.py
+@@ -32,6 +32,7 @@ def __init__(self, config, node_id, on_message_callback=None, deduplicator=None)
+         
+         self.prefixed_node_id = f"!{node_id}" if node_id else None
+         self.current_mqtt_cfg = None
++        self.node_channel_names = set()  # Channel names on the node, for extra-root filtering
+ 
+     def configure(self, node_mqtt_config):
+         """Configure the MQTT client based on node settings."""
+@@ -137,18 +138,27 @@ def _on_connect(self, client, userdata, flags, rc, props=None):
+             self.connected = True
+             self.health_check_enabled = True
+             self.last_activity = time.time()
+-            
++
+             if self.current_mqtt_cfg:
+                 root_topic = self.mqtt_root
+-                
++
+                 # Publish Online Presence
+                 topic_stat = f"{root_topic}/2/stat/{self.prefixed_node_id}"
+                 client.publish(topic_stat, payload="online", retain=True)
+-                
+-                # Subscribe to ALL Encrypted Traffic
++
++                # Subscribe to ALL Encrypted Traffic under node's root
+                 topic_enc = f"{root_topic}/2/e/#"
+                 logger.info("📥 Subscribing to Encrypted Wildcard: %s", topic_enc)
+                 client.subscribe(topic_enc)
++
++                # Subscribe to extra MQTT root topics
++                subscribed_roots = {root_topic}
++                for extra_root in getattr(self.config, 'extra_mqtt_roots', []):
++                    if extra_root not in subscribed_roots:
++                        extra_topic = f"{extra_root}/2/e/#"
++                        logger.info("📥 Subscribing to Extra Root: %s", extra_topic)
++                        client.subscribe(extra_topic)
++                        subscribed_roots.add(extra_root)
+         else:
+             self.connected = False
+             logger.error("❌ MQTT Connect failed: %s", rc)
+@@ -233,11 +243,36 @@ def _on_message(self, client, userdata, message):
+                 logger.debug(f"⏭️ Skipping retained MQTT message: {message.topic}")
+                 return
+               
++            # Extra-root crosstalk prevention: don't forward packets from extra roots
++            # if the channel is also configured on the node (node would rebroadcast on RF)
++            if self.node_channel_names and self.mqtt_root:
++                extra_roots = getattr(self.config, 'extra_mqtt_roots', [])
++                if extra_roots:
++                    is_extra_root = False
++                    for extra_root in extra_roots:
++                        if message.topic.startswith(f"{extra_root}/"):
++                            if not message.topic.startswith(f"{self.mqtt_root}/"):
++                                is_extra_root = True
++                                break
++                    if is_extra_root:
++                        # Parse channel name from topic: {root}/2/e/{channelName}/{nodeId}
++                        parts = message.topic.split("/")
++                        # Find channel name: it's after the /2/e/ segment
++                        try:
++                            e_idx = parts.index("e")
++                            if e_idx + 1 < len(parts):
++                                channel_name = parts[e_idx + 1]
++                                if channel_name in self.node_channel_names:
++                                    logger.debug("🛡️ Dropping extra-root packet for node channel '%s': %s", channel_name, message.topic)
++                                    return
++                        except (ValueError, IndexError):
++                            pass  # Malformed topic, forward anyway
++
+             self.last_activity = time.time()
+             self.rx_count += 1
+-            
++
+             logger.info("📥 MQTT->Node: Topic=%s Size=%d bytes Retained=%s", message.topic, len(message.payload), message.retain)
+-            
++
+             if self.on_message_callback:
+                 self.on_message_callback(message.topic, message.payload, message.retain)
+                 
+diff --git a/mqtt-proxy.py b/mqtt-proxy.py
+index 12d8628..2298162 100644
+--- a/mqtt-proxy.py
++++ b/mqtt-proxy.py
+@@ -164,10 +164,35 @@ def _init_mqtt(self):
+             logger.info("🌐 Initializing MQTT Handler for node !%s...", node_id)
+             self.mqtt_handler = MQTTHandler(cfg, node_id, self.on_mqtt_message_to_radio, deduplicator=self.deduplicator)
+             self.mqtt_handler.configure(node.moduleConfig.mqtt)
++
++            # Extract node channel names for extra-root crosstalk prevention
++            self.mqtt_handler.node_channel_names = self._get_node_channel_names(node)
++            if self.mqtt_handler.node_channel_names:
++                logger.info("📋 Node channels for extra-root filtering: %s", self.mqtt_handler.node_channel_names)
++
+             self.mqtt_handler.start()
+         else:
+             logger.warning("⚠️ No MQTT configuration found on node !%s!", node_id)
+ 
++    @staticmethod
++    def _get_node_channel_names(node):
++        """Extract channel names from the node's channel list."""
++        names = set()
++        try:
++            if not hasattr(node, 'channels') or not node.channels:
++                return names
++            for ch in node.channels:
++                if ch.role == 0:  # DISABLED
++                    continue
++                name = ch.settings.name if ch.settings and ch.settings.name else None
++                if not name and ch.role == 1:  # PRIMARY with empty name defaults to modem preset
++                    name = "LongFast"  # Most common default
++                if name:
++                    names.add(name)
++        except Exception as e:
++            logger.warning("⚠️ Failed to read node channel names: %s", e)
++        return names
++
+     def on_connection_lost(self, interface, **kwargs):
+         """Callback when connection to radio is lost."""
+         if self.connection_lost_time > 0 and (time.time() - self.connection_lost_time < 2):
+diff --git a/tests/test_extra_mqtt_roots.py b/tests/test_extra_mqtt_roots.py
+new file mode 100644
+index 0000000..9864638
+--- /dev/null
++++ b/tests/test_extra_mqtt_roots.py
+@@ -0,0 +1,207 @@
++import os
++import sys
++import pytest
++from unittest.mock import patch, MagicMock, call
++
++sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
++
++
++class TestExtraMqttRootsConfig:
++    """Test EXTRA_MQTT_ROOTS config parsing."""
++
++    def test_default_is_empty_list(self):
++        """No env var set => empty list."""
++        with patch.dict(os.environ, {}, clear=False):
++            os.environ.pop("EXTRA_MQTT_ROOTS", None)
++            from config import Config
++            cfg = Config()
++            assert cfg.extra_mqtt_roots == []
++
++    def test_single_root(self):
++        """Single root topic."""
++        with patch.dict(os.environ, {"EXTRA_MQTT_ROOTS": "msh/US/OH"}):
++            from config import Config
++            cfg = Config()
++            assert cfg.extra_mqtt_roots == ["msh/US/OH"]
++
++    def test_multiple_roots(self):
++        """Comma-separated list."""
++        with patch.dict(os.environ, {"EXTRA_MQTT_ROOTS": "msh/US/OH,msh/US/CA"}):
++            from config import Config
++            cfg = Config()
++            assert cfg.extra_mqtt_roots == ["msh/US/OH", "msh/US/CA"]
++
++    def test_whitespace_stripped(self):
++        """Whitespace around entries is stripped."""
++        with patch.dict(os.environ, {"EXTRA_MQTT_ROOTS": " msh/US/OH , msh/US/CA "}):
++            from config import Config
++            cfg = Config()
++            assert cfg.extra_mqtt_roots == ["msh/US/OH", "msh/US/CA"]
++
++    def test_empty_string(self):
++        """Empty string => empty list."""
++        with patch.dict(os.environ, {"EXTRA_MQTT_ROOTS": ""}):
++            from config import Config
++            cfg = Config()
++            assert cfg.extra_mqtt_roots == []
++
++    def test_trailing_comma_ignored(self):
++        """Trailing comma doesn't create empty entry."""
++        with patch.dict(os.environ, {"EXTRA_MQTT_ROOTS": "msh/US/OH,"}):
++            from config import Config
++            cfg = Config()
++            assert cfg.extra_mqtt_roots == ["msh/US/OH"]
++
++
++class TestExtraMqttRootsSubscription:
++    """Test that extra roots get subscribed on MQTT connect."""
++
++    def _make_handler(self, extra_roots):
++        """Create an MQTTHandler with given extra roots."""
++        from handlers.mqtt import MQTTHandler
++
++        config = MagicMock()
++        config.extra_mqtt_roots = extra_roots
++        handler = MQTTHandler(config, "1234abcd")
++
++        node_cfg = MagicMock()
++        node_cfg.enabled = True
++        node_cfg.address = "mqtt.example.com"
++        node_cfg.port = 1883
++        node_cfg.tlsEnabled = False
++        node_cfg.username = "user"
++        node_cfg.password = "pass"
++        node_cfg.root = "msh/US/MI"
++        handler.configure(node_cfg)
++
++        return handler
++
++    def test_no_extra_roots(self):
++        """Only the node's root topic is subscribed."""
++        handler = self._make_handler([])
++        mock_client = MagicMock()
++        handler._on_connect(mock_client, None, None, 0)
++
++        subscribe_calls = mock_client.subscribe.call_args_list
++        assert len(subscribe_calls) == 1
++        assert subscribe_calls[0] == call("msh/US/MI/2/e/#")
++
++    def test_extra_roots_subscribed(self):
++        """Extra roots are subscribed in addition to node root."""
++        handler = self._make_handler(["msh/US/OH", "msh/US/CA"])
++        mock_client = MagicMock()
++        handler._on_connect(mock_client, None, None, 0)
++
++        subscribe_calls = mock_client.subscribe.call_args_list
++        topics = [c[0][0] for c in subscribe_calls]
++        assert "msh/US/MI/2/e/#" in topics
++        assert "msh/US/OH/2/e/#" in topics
++        assert "msh/US/CA/2/e/#" in topics
++        assert len(topics) == 3
++
++    def test_duplicate_root_not_subscribed_twice(self):
++        """If extra root matches node root, don't double-subscribe."""
++        handler = self._make_handler(["msh/US/MI", "msh/US/OH"])
++        mock_client = MagicMock()
++        handler._on_connect(mock_client, None, None, 0)
++
++        subscribe_calls = mock_client.subscribe.call_args_list
++        topics = [c[0][0] for c in subscribe_calls]
++        assert topics.count("msh/US/MI/2/e/#") == 1
++        assert "msh/US/OH/2/e/#" in topics
++        assert len(topics) == 2
++
++    def test_failed_connect_no_extra_subscriptions(self):
++        """Non-zero rc means no subscriptions at all."""
++        handler = self._make_handler(["msh/US/OH"])
++        mock_client = MagicMock()
++        handler._on_connect(mock_client, None, None, 5)
++
++        mock_client.subscribe.assert_not_called()
++
++
++class TestExtraRootCrosstalkPrevention:
++    """Test that extra-root packets for node channels are dropped."""
++
++    def _make_handler(self, extra_roots, node_channels):
++        """Create an MQTTHandler with extra roots and node channel names."""
++        from handlers.mqtt import MQTTHandler
++
++        config = MagicMock()
++        config.extra_mqtt_roots = extra_roots
++        config.mqtt_forward_retained = False
++        handler = MQTTHandler(config, "1234abcd")
++
++        node_cfg = MagicMock()
++        node_cfg.enabled = True
++        node_cfg.address = "mqtt.example.com"
++        node_cfg.port = 1883
++        node_cfg.tlsEnabled = False
++        node_cfg.username = "user"
++        node_cfg.password = "pass"
++        node_cfg.root = "msh/US/MI"
++        handler.configure(node_cfg)
++        handler.node_channel_names = node_channels
++
++        return handler
++
++    def _make_message(self, topic, payload=b"\x00" * 20):
++        msg = MagicMock()
++        msg.topic = topic
++        msg.payload = payload
++        msg.retain = False
++        return msg
++
++    def test_extra_root_shared_channel_dropped(self):
++        """Packet from extra root on a node channel is dropped."""
++        handler = self._make_handler(["msh/US/OH"], {"LongFast", "Michigan"})
++        handler.on_message_callback = MagicMock()
++
++        handler._on_message(None, None, self._make_message("msh/US/OH/2/e/LongFast/!abcd1234"))
++
++        handler.on_message_callback.assert_not_called()
++
++    def test_extra_root_unknown_channel_forwarded(self):
++        """Packet from extra root on a channel NOT on the node is forwarded."""
++        handler = self._make_handler(["msh/US/OH"], {"LongFast", "Michigan"})
++        handler.on_message_callback = MagicMock()
++
++        handler._on_message(None, None, self._make_message("msh/US/OH/2/e/OHEmergency/!abcd1234"))
++
++        handler.on_message_callback.assert_called_once()
++
++    def test_own_root_never_filtered(self):
++        """Packets from the node's own root are never filtered, even for node channels."""
++        handler = self._make_handler(["msh/US/OH"], {"LongFast", "Michigan"})
++        handler.on_message_callback = MagicMock()
++
++        handler._on_message(None, None, self._make_message("msh/US/MI/2/e/LongFast/!abcd1234"))
++
++        handler.on_message_callback.assert_called_once()
++
++    def test_no_node_channels_no_filtering(self):
++        """If node_channel_names is empty, no filtering occurs."""
++        handler = self._make_handler(["msh/US/OH"], set())
++        handler.on_message_callback = MagicMock()
++
++        handler._on_message(None, None, self._make_message("msh/US/OH/2/e/LongFast/!abcd1234"))
++
++        handler.on_message_callback.assert_called_once()
++
++    def test_no_extra_roots_no_filtering(self):
++        """If no extra roots configured, no filtering occurs."""
++        handler = self._make_handler([], {"LongFast"})
++        handler.on_message_callback = MagicMock()
++
++        handler._on_message(None, None, self._make_message("msh/US/MI/2/e/LongFast/!abcd1234"))
++
++        handler.on_message_callback.assert_called_once()
++
++    def test_malformed_topic_forwarded(self):
++        """Malformed topic without channel name is forwarded (safe default)."""
++        handler = self._make_handler(["msh/US/OH"], {"LongFast"})
++        handler.on_message_callback = MagicMock()
++
++        handler._on_message(None, None, self._make_message("msh/US/OH/2/e"))
++
++        handler.on_message_callback.assert_called_once()

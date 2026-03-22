@@ -2,7 +2,7 @@
 
 A production-ready MQTT proxy for Meshtastic devices that enables bidirectional message forwarding between Meshtastic nodes and MQTT brokers. Supports TCP and Serial interface connections with a clean factory pattern architecture.
 
-**Version**: 1.6.1
+**Version**: 1.6.2
 
 ## Features
 
@@ -287,6 +287,8 @@ services:
       - "4404:4404"
     environment:
       - ENABLE_VIRTUAL_NODE=true
+      # Optional: Subscribe to another region's traffic
+      - EXTRA_MQTT_ROOTS=msh/US/NC:NC
       - VIRTUAL_NODE_PORT=4404
       - MESHTASTIC_NODE_IP=serial-bridge  # Connects to serial-bridge by name
       - STATUS_FILE=/data/.upgrade-status
@@ -497,7 +499,8 @@ while the source code of this proxy is MIT licensed, it depends on third-party l
 
 - **Issues**: [GitHub Issues](https://github.com/LN4CY/mqtt-proxy/issues)
 - **Meshtastic Discord**: [Join](https://discord.gg/meshtastic)
-- **Documentation**: See [CONFIG.md](CONFIG.md) for detailed configuration
+- **Version**: 1.6.2
+- **Documentation**: [Configuration Guide](CONFIG.md) | [Architecture](ARCHITECTURE.md)
 
 ## Roadmap
 

@@ -74,12 +74,12 @@ class Config:
         extra_roots_raw = os.environ.get("EXTRA_MQTT_ROOTS", "")
         self.extra_mqtt_roots = []
         for r in extra_roots_raw.split(","):
-            r = r.strip()
+            r = r.strip().strip('"').strip("'")
             if not r:
                 continue
             if ":" in r:
                 root_part, prefix = r.split(":", 1)
-                self.extra_mqtt_roots.append((root_part.strip(), prefix.strip()))
+                self.extra_mqtt_roots.append((root_part.strip().strip('"').strip("'"), prefix.strip().strip('"').strip("'")))
             else:
                 self.extra_mqtt_roots.append((r, r.split("/")[-1]))
 
