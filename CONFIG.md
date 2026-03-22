@@ -122,26 +122,57 @@ BLE support requires custom implementation using the `bleak` library. See the [m
 
 ### Extra MQTT Roots (Virtual Channels)
 
-Monitor encrypted traffic from additional regions beyond your primary root topic **without causing RF crosstalk**.
+Monitor encrypted traffic from additional MQTT servers or root topics beyond your primary node configuration **without causing RF crosstalk**.
 
 **Configuration:**
 ```env
-EXTRA_MQTT_ROOTS=msh/US/OH, msh/US/CA:California
+# Format: <root>:<alias>, ...
+# The alias becomes the channel prefix in MeshMonitor (e.g. NC-LongFast)
+EXTRA_MQTT_ROOTS=msh/US/NC:NC, msh/US/OH:Ohio
 ```
 
-When configured, the proxy automatically subscribes to `{root}/2/e/#` for each specified root in addition to your node's primary root. 
+When configured, the proxy subscribes to `{root}/2/e/#` for each extra root in addition to your node's primary root.
 
-**Topic Rewriting (Virtual Channels)**:
-To prevent "crosstalk" (where downloading Ohio's `LongFast` traffic inadvertently causes your local Michigan USB radio to broadcast it over RF), the proxy utilizes a **Virtual Channel** mapping.
+**How Virtual Channels Work:**
 
-If a packet arrives from an extra root, its channel name is rewritten on-the-fly to include a prefix:
-- `msh/US/OH` defaults to the prefix `OH` ➔ `OH-LongFast`
-- `msh/US/CA:California` uses custom prefix `California` ➔ `California-LongFast`
+When a packet arrives from an extra root, the proxy performs a two-part rewrite before injecting it into the radio:
 
-By rewriting the channel name to a "Virtual Channel" (e.g., `OH-LongFast`), your local USB radio ignores it. However, if you are using MeshMonitor's Channel Database, the encrypted payload is successfully decrypted, allowing you to seamlessly monitor cross-region traffic!
+1. **Topic rewrite:** The MQTT topic channel name is prefixed with the alias.
+   - `msh/US/NC/2/e/LongFast/!abc123` → `msh/US/2/e/NC-LongFast/!abc123`
+
+2. **Payload mutation (crosstalk prevention):** The proxy also mutates two fields inside the `ServiceEnvelope` protobuf payload:
+   - `channel_id` string → `NC-LongFast` (the virtual channel name)
+   - `packet.channel` integer (PSK hash) → a synthetic hash unique to the virtual channel name
+
+   The radio firmware uses this PSK hash to look up its decryption key. Since no local channel has the synthetic hash configured, the radio **cannot decrypt the packet and will not rebroadcast it over RF** — completely preventing cross-region crosstalk. The encrypted payload bytes themselves are untouched.
+
+**MeshMonitor Channel Database Setup:**
+
+Because the radio cannot decrypt virtual channel packets, MeshMonitor must be configured to decrypt them independently using its **Channel Database**.
+
+For each virtual channel you want to monitor in MeshMonitor, add an entry:
+
+| Virtual Channel Name | Key to enter |
+|---|---|
+| `NC-LongFast` | `AQ==` (standard LongFast default key) |
+| `NC-MyChannel` | The original PSK for `MyChannel` on the remote network |
+
+The virtual channel name is always `{ALIAS}-{ORIGINAL_CHANNEL_NAME}`, where `ALIAS` comes from your `EXTRA_MQTT_ROOTS` config.
 
 > [!TIP]
-> **Loop Prevention & MeshMonitor Architecture:** Virtual Channels are intentionally sent to the proxy's transmission queue so they can be received natively over the socket connection by MeshMonitor (which acts as a Virtual Node Server). When MeshMonitor echoes the packed back to the proxy, the proxy automatically **drops** the Virtual Channel instead of republishing it. This breaks the infinite MQTT loop while keeping MeshMonitor informed!
+> **How to find the alias:** Check the proxy startup logs. You will see lines like:
+> ```
+> 📥 Subscribing to Extra Root: msh/US/NC/2/e/#
+> 🔄 Virtual Channel Rewrite: LongFast -> NC-LongFast
+> ```
+> The virtual channel name shown in the log is exactly what to enter in MeshMonitor's Channel Database.
+
+> [!NOTE]
+> **Monitoring only:** Virtual Channels are strictly read-only. Because the hardware radio does not know about virtual channels, there is no way to send a reply on a virtual channel. This is by design — the feature is intended for safe, passive cross-region monitoring without bridging two networks.
+
+> [!IMPORTANT]
+> **Loop Prevention:** When MeshMonitor echoes a virtual channel packet back to the proxy, the proxy's uplink filter automatically drops it (since the virtual channel is not defined on the physical radio). This prevents an infinite `proxy → MeshMonitor → MQTT → proxy` feedback loop.
+
 
 ## Meshtastic Node Configuration
 
