@@ -151,15 +151,15 @@ class MQTTHandler:
 
     def _mutate_virtual_channel_payload(self, payload, new_channel_name):
         """
-        Mutate ServiceEnvelope protobuf to rewrite channel identity fields.
+        Mutate ServiceEnvelope protobuf to rewrite the PSK hash.
 
         Changes:
-          - envelope.channel_id  : string name → virtual channel name (e.g. 'NC-LongFast')
           - packet.channel       : PSK hash    → synthetic hash unique to the virtual channel
 
-        The encrypted payload bytes (packet.encrypted) are left completely untouched.
-        MeshMonitor can still decrypt the message using the original key via its
-        Channel Database entry for the virtual channel name.
+        The string name (envelope.channel_id) and encrypted payload bytes 
+        (packet.encrypted) are left completely untouched. 
+        MeshMonitor can still decrypt the message using the original key and original
+        channel name via its Channel Database entry.
 
         This prevents the radio firmware from matching its local PSK and rebroadcasting
         the packet over RF, which would cause crosstalk between MQTT server regions.
@@ -169,17 +169,14 @@ class MQTTHandler:
             envelope = mqtt_pb2.ServiceEnvelope()
             envelope.ParseFromString(payload)
 
-            original_channel_id = envelope.channel_id
             original_channel_hash = envelope.packet.channel
 
-            # Rewrite plain-text wrapper fields only
-            envelope.channel_id = new_channel_name
+            # Rewrite only the PSK hash to blind the radio firmware
             envelope.packet.channel = self._compute_virtual_channel_hash(new_channel_name)
 
             mutated = envelope.SerializeToString()
             logger.debug(
-                "🔒 Payload mutation: channel_id '%s'→'%s', packet.channel %d→%d",
-                original_channel_id, new_channel_name,
+                "🔒 Payload mutation: packet.channel %d→%d",
                 original_channel_hash, envelope.packet.channel
             )
             return mutated
@@ -318,13 +315,14 @@ class MQTTHandler:
                             parts[-2] = new_channel_name
                             modified_topic = "/".join(parts)
                             # CRITICAL: Also mutate the protobuf payload to change the channel
-                            # identity fields (channel_id string + packet.channel PSK hash).
+                            # identity field (packet.channel PSK hash).
                             # The radio firmware uses packet.channel (PSK hash) to look up
                             # its decryption key. By replacing it with a synthetic hash that
                             # no local radio has configured, the firmware cannot decrypt the
                             # packet and will NOT rebroadcast it over RF.
-                            # The encrypted bytes are left untouched so MeshMonitor can still
-                            # decrypt using the original key via its Channel Database.
+                            # The encrypted bytes and original channel_id string are left 
+                            # untouched so MeshMonitor can still decrypt using the original 
+                            # key and channel name via its Channel Database.
                             modified_payload = self._mutate_virtual_channel_payload(
                                 message.payload, new_channel_name
                             )

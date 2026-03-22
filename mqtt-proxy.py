@@ -234,9 +234,15 @@ class MQTTProxy:
                 enabled = getattr(ch.settings, "downlink_enabled", True)
                 return enabled
                 
-        # Should we be strict? For now, we allow unknown channels to pass down to the "node"
-        # so that MeshMonitor (acting as a virtual node) can see Virtual Channels.
-        logger.debug("⚠️ Channel '%s' not found in node config, allowing by default", channel_name)
+        # Virtual Channel Pass-Through:
+        # If the channel is not defined on the physical radio, we still
+        # forward the packet to the radio. The proxy has already mutated the packet.channel
+        # PSK hash, so the radio has no matching key and CANNOT decrypt or rebroadcast it.
+        # However, the raw encrypted packet is sent to all connected TCP clients 
+        # (e.g. MeshMonitor), which can natively decrypt it using its own Channel Database 
+        # based on the original channelname embedded in the packet.
+        # This keeps the key off the node, preventing RF crosstalk while allowing monitoring.
+        logger.debug("📡 Channel '%s' not defined on radio, forwarding for MeshMonitor (virtual channel passthrough)", channel_name)
         return True
 
     def _is_channel_uplink_enabled(self, channel_name):
