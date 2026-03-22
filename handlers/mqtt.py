@@ -248,8 +248,8 @@ class MQTTHandler:
             extra_roots = getattr(self.config, 'extra_mqtt_roots', [])
             for er_root, er_prefix in extra_roots:
                 if modified_topic.startswith(f"{er_root}/"):
-                    # Avoid rewriting if it's identical to primary root
-                    if self.mqtt_root and modified_topic.startswith(f"{self.mqtt_root}/"):
+                    # Avoid rewriting if the configured extra root exactly matches the primary root
+                    if self.mqtt_root and er_root == self.mqtt_root:
                         continue
                         
                     parts = modified_topic.split("/")
