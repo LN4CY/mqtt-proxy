@@ -10,8 +10,8 @@ This release fixes a critical bug where Virtual Channel packets injected into th
   * **Root Cause:** The radio firmware uses `packet.channel` — a PSK hash integer embedded in the `ServiceEnvelope` protobuf payload — to look up its decryption key. Because the topic-only rewrite (`NC-LongFast`) left the original PSK hash intact, the radio could still match its local channel key and decrypt the packet, causing it to rebroadcast over RF.
   * **Fix:** The proxy now mutates the `packet.channel` field in the protobuf payload before injecting it into the radio:
     * `packet.channel` — replaced with a synthetic hash unique to the virtual channel name that no local radio will ever have configured
-  * The `packet.encrypted` bytes and original `channel_id` string are left completely untouched. MeshMonitor can still seamlessly match the original channel name and decrypt the message using its standard Channel Database without any special `NC-` prefixed setup.
-  * Added `INFO`-level log entry on every virtual channel rewrite for easy discovery of virtual channel names.
+  * The `packet.encrypted` bytes and original `channel_id` string are left completely untouched. MeshMonitor natively decrypts the message using its standard Channel Database. **Known Defect:** Because the PSK hash is faked, MeshMonitor's "Enforce Channel Name Validation" cannot be used. Consequently, if multiple channels share the exact same key, MeshMonitor will decode and merge their traffic into a single channel display.
+  * Added `INFO`-level log entry on every virtual channel rewrite for easy discovery of exact virtual channel names.
 
 ## 📝 Documentation
 

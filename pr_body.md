@@ -11,9 +11,15 @@ Mutate the `ServiceEnvelope` protobuf **before** injecting to the radio:
 
 The radio firmware finds no matching PSK for the synthetic hash → cannot decrypt → **does not rebroadcast over RF** ✅
 
-The `packet.encrypted` bytes and the `channel_id` string name are **completely untouched**. This allows MeshMonitor to seamlessly match the *original* channel name and use its standard Channel Database to decrypt the packet using the original key. Users do not need to configure special `NC-` prefixed names in MeshMonitor's Channel Database, and "Enforce Channel Name Validation" works perfectly out of the box with existing databases.
+The `packet.encrypted` bytes and the `channel_id` string name are **completely untouched**. This allows MeshMonitor to decrypt the packet using its standard Channel Database natively. 
+
+**Known Defect:** Because the PSK hash is faked to prevent radio crosstalk, MeshMonitor's "Enforce Channel Name Validation" cannot be used (it strictly fails the hash check). Consequently, if multiple monitored channels share the exact same key, MeshMonitor will decode and merge their traffic into a single channel display.
+
+## Setup for Users
+
+Users just ensure the original PSK exists in their MeshMonitor Channel Database. No custom `NC-` prefixed entries are required. "Enforce Channel Name Validation" must remain OFF.
 
 ## Testing
 - All 67 existing tests pass
 - Live verified: `packet.channel` carries PSK hash (not slot index) via `inspect_payload.py`
-- Confirmed MeshMonitor successfully decrypts using original channels natively.
+- Confirmed MeshMonitor successfully decrypts natively, with documentation updated on the shared-PSK defect.

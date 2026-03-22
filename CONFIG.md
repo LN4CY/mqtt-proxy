@@ -145,22 +145,18 @@ When a packet arrives from an extra root, the proxy performs a two-part rewrite 
 
    The radio firmware uses this PSK hash to look up its decryption key. Since no local channel has the synthetic hash configured, the radio **cannot decrypt the packet and will not rebroadcast it over RF** — completely preventing cross-region crosstalk.
 
-**MeshMonitor Compatibility:**
+**MeshMonitor Channel Database Setup:**
 
-Because the proxy only mutates the target hash, the **encrypted payload bytes and the original `channel_id` string** are left entirely untouched.
+Because the proxy preserves the original `channel_id` string and leaves the encrypted payload bytes untouched, MeshMonitor natively receives the exact original packet data.
 
-This means MeshMonitor receives exactly the original packet data and original channel name natively. 
+You just need to ensure the original channel name and PSK exist in your MeshMonitor Channel Database. You do **not** need to create special `NC-` prefixed names.
 
 > [!CAUTION]
-> **Decryption Required:** Because the radio hardware cannot decrypt virtual channel packets, MeshMonitor must decrypt them itself. **You must still add the original channel name and PSK to your MeshMonitor Channel Database.** 
->
-> For example, if you are monitoring Ohio's `LongFast` traffic, you just need a standard entry for `LongFast` with the `AQ==` key in your DB.
-
-**What if multiple channels use the same key?**
-By default, MeshMonitor matches packets purely by their PSK hash. If you have multiple channels that share the exact same key (e.g. `LongFast` and an extra `BaseCamp` channel both use `AQ==`), MeshMonitor might display the packet under the wrong name. 
-
-If this happens, you **must enable "Enforce Channel Name Validation"** in MeshMonitor's settings. Because the proxy meticulously preserves the original `channel_id` string inside the protobuf, MeshMonitor will seamlessly use both the key AND the original name to match the correct database entry, perfectly separating channels that share a key. You still do not need to create special `NC-` prefixed names.
-
+> **Known Limitation (Shared Keys):** If you use the same key for multiple channels (e.g., both your local `LongFast` and the virtual `LongFast` use `AQ==`), **MeshMonitor will decode traffic for both into the exact same channel display**. 
+> 
+> You cannot turn on "Enforce Channel Name Validation" in MeshMonitor to separate them. Because the proxy must fake the PSK hash to prevent the physical radio from transmitting the packet, MeshMonitor's strict "Enforce Name" validation will fail the hash check and refuse to decrypt entirely.
+> 
+> As a result, virtual channel traffic will simply be merged into your existing local channel display if they share a key.
 > **Monitoring only:** Virtual Channels are strictly read-only. Because the hardware radio does not know about virtual channels, there is no way to send a reply on a virtual channel. This is by design — the feature is intended for safe, passive cross-region monitoring without bridging two networks.
 
 > [!IMPORTANT]
