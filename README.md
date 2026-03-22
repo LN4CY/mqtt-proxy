@@ -2,7 +2,7 @@
 
 A production-ready MQTT proxy for Meshtastic devices that enables bidirectional message forwarding between Meshtastic nodes and MQTT brokers. Supports TCP and Serial interface connections with a clean factory pattern architecture.
 
-**Version**: 1.6.3
+**Version**: 1.6.4
 
 ## Features
 
@@ -438,20 +438,20 @@ Because this repository enforces **Pull Request requirements** for the `master` 
 
 1. **Create a Release Branch:**
    ```bash
-   git checkout -b release/v1.6.3
+   git checkout -b release/v1.6.4
    ```
 
 2. **Run the Release Script:**
    Use the provided automation script to bump the version in `version.py` and `README.md`:
    ```bash
-   python scripts/release.py 1.6.3
+   python scripts/release.py 1.6.4
    ```
-   *This will create a local "chore: release v1.6.3" commit and a local `v1.6.3` tag.*
+   *This will create a local "chore: release v1.6.4" commit and a local `v1.6.4` tag.*
 
 3. **Push and Open a PR:**
    Push the branch and open a Pull Request to `master`.
    ```bash
-   git push origin release/v1.6.3
+   git push origin release/v1.6.4
    ```
 
 4. **Merge and Tag:**
@@ -459,7 +459,7 @@ Because this repository enforces **Pull Request requirements** for the `master` 
    ```bash
    git checkout master
    git pull
-   git push origin v1.6.3
+   git push origin v1.6.4
    ```
 
 The GitHub Actions will automatically detect the new tag, build the Windows executable, and publish the Docker images.
@@ -500,7 +500,7 @@ while the source code of this proxy is MIT licensed, it depends on third-party l
 
 - **Issues**: [GitHub Issues](https://github.com/LN4CY/mqtt-proxy/issues)
 - **Meshtastic Discord**: [Join](https://discord.gg/meshtastic)
-- **Version**: 1.6.3
+- **Version**: 1.6.4
 - **Documentation**: [Configuration Guide](CONFIG.md) | [Architecture](ARCHITECTURE.md)
 
 ## Roadmap

@@ -1,3 +1,10 @@
+# Release v1.6.4
+
+## 🚀 Infrastructure & CI/CD
+- **Windows Executable Release Flow:** Fixed the GitHub Actions workflow to correctly attach the Windows `.exe` standalone application to immutable releases.
+
+---
+
 # Release v1.6.3
 
 ## Virtual Channel RF Crosstalk Prevention
