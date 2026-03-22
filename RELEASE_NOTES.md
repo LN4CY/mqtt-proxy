@@ -1,3 +1,25 @@
+# Release v1.6.3
+
+## Virtual Channel RF Crosstalk Prevention
+
+This release fixes a critical bug where Virtual Channel packets injected into the local radio (via `EXTRA_MQTT_ROOTS`) could be decrypted and rebroadcast over RF to nearby nodes, effectively bridging two independent MQTT server regions against the user's intent.
+
+## 🐛 Bug Fixes
+
+* **Fix: Virtual Channel RF Crosstalk** (PR #41)
+  * **Root Cause:** The radio firmware uses `packet.channel` — a PSK hash integer embedded in the `ServiceEnvelope` protobuf payload — to look up its decryption key. Because the topic-only rewrite (`NC-LongFast`) left the original PSK hash intact, the radio could still match its local channel key and decrypt the packet, causing it to rebroadcast over RF.
+  * **Fix:** The proxy now mutates two fields in the protobuf payload before injecting it into the radio:
+    * `envelope.channel_id` — updated to the virtual channel name (e.g. `NC-LongFast`)
+    * `packet.channel` — replaced with a synthetic hash unique to the virtual channel name that no local radio will ever have configured
+  * The `packet.encrypted` bytes are left completely untouched. MeshMonitor can still decrypt the message using the original key via its Channel Database.
+  * Added `INFO`-level log entry on every virtual channel rewrite for easy discovery of virtual channel names.
+
+## 📝 Documentation
+
+* Updated `CONFIG.md` Virtual Channels section to accurately describe the payload mutation mechanism and added **MeshMonitor Channel Database setup instructions** explaining which channel name and key to configure for each virtual channel.
+
+---
+
 # Release v1.6.2
 
 This release introduces two major new features to handle advanced broker routing and to improve fidelity with Meshtastic node configurations: **Virtual Channels (Multi-Root)** and **Per-Channel Uplink/Downlink Filtering**.
