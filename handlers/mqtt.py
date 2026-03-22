@@ -328,8 +328,8 @@ class MQTTHandler:
                             modified_payload = self._mutate_virtual_channel_payload(
                                 message.payload, new_channel_name
                             )
-                            logger.debug("🔄 Virtual Channel Rewrite: %s -> %s for extra root %s",
-                                         channel_name, new_channel_name, er_root)
+                            logger.info("🔄 Virtual Channel Rewrite: %s -> %s (extra root: %s)",
+                                        channel_name, new_channel_name, er_root)
                     break
 
             self.last_activity = time.time()

@@ -160,12 +160,11 @@ For each virtual channel you want to monitor in MeshMonitor, add an entry:
 The virtual channel name is always `{ALIAS}-{ORIGINAL_CHANNEL_NAME}`, where `ALIAS` comes from your `EXTRA_MQTT_ROOTS` config.
 
 > [!TIP]
-> **How to find the alias:** Check the proxy startup logs. You will see lines like:
+> **How to find virtual channel names:** Check the proxy logs (default `INFO` level). When a packet arrives from an extra root, you will see a line like:
 > ```
-> 📥 Subscribing to Extra Root: msh/US/NC/2/e/#
-> 🔄 Virtual Channel Rewrite: LongFast -> NC-LongFast
+> 🔄 Virtual Channel Rewrite: LongFast -> NC-LongFast (extra root: msh/US/NC)
 > ```
-> The virtual channel name shown in the log is exactly what to enter in MeshMonitor's Channel Database.
+> The virtual channel name (e.g. `NC-LongFast`) is exactly what to configure in MeshMonitor's Channel Database. Alternatively, the name is always `{ALIAS}-{ORIGINAL_CHANNEL_NAME}` based on your `EXTRA_MQTT_ROOTS` alias.
 
 > [!NOTE]
 > **Monitoring only:** Virtual Channels are strictly read-only. Because the hardware radio does not know about virtual channels, there is no way to send a reply on a virtual channel. This is by design — the feature is intended for safe, passive cross-region monitoring without bridging two networks.
