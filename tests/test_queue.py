@@ -1,7 +1,6 @@
 
 import unittest
 import time
-import queue
 from unittest.mock import MagicMock, patch
 import sys
 import os
@@ -29,8 +28,9 @@ class TestMessageQueue(unittest.TestCase):
     def test_put_enqueues_item(self):
         """Test adding items to the queue."""
         self.q.put("topic", b"payload", False)
-        assert self.q.queue.qsize() == 1
-        item = self.q.queue.get()
+        assert self.q.qsize() == 1
+        items = list(self.q.drain_all())
+        item = items[0]
         assert item['topic'] == "topic"
         assert item['payload'] == b"payload"
         assert item['retained'] == False
@@ -142,7 +142,7 @@ class TestMessageQueue(unittest.TestCase):
             time.sleep(0.2)
             
             # Should have logged error
-            mock_logger.error.assert_called_with("❌ Failed to send to radio: Radio error")
+            mock_logger.error.assert_called_with("Failed to send to radio: Radio error")
             # Queue should still be running/processing
             assert self.q.running
 

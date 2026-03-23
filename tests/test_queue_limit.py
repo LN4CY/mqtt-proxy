@@ -1,6 +1,5 @@
 
 import unittest
-import queue
 from unittest.mock import MagicMock, patch
 import sys
 import os
@@ -16,7 +15,7 @@ class MockConfig:
         self.mesh_max_queue_size = max_size
 
 class TestMessageQueueLimit(unittest.TestCase):
-    
+
     def setUp(self):
         self.max_size = 5
         self.config = MockConfig(max_size=self.max_size)
@@ -27,33 +26,39 @@ class TestMessageQueueLimit(unittest.TestCase):
     def tearDown(self):
         self.q.stop()
 
-    def test_queue_limit_drops_messages(self):
-        """Test that adding items beyond max_size drops them."""
+    def test_queue_full_evicts_oldest(self):
+        """When queue is full, adding a new message evicts the oldest."""
         # Fill the queue
         for i in range(self.max_size):
             self.q.put(f"topic_{i}", b"data", False)
-            
-        self.assertEqual(self.q.queue.qsize(), self.max_size)
-        
-        # Adding one more should drop it
-        with patch('handlers.queue.logger') as mock_logger:
-            self.q.put("dropped_topic", b"data", False)
-            
-            # Size should still be max_size
-            self.assertEqual(self.q.queue.qsize(), self.max_size)
-            
-            # Logger error should have been called
-            mock_logger.error.assert_called_with(f"❌ Queue FULL ({self.max_size} msgs). Dropping new message for topic: dropped_topic")
 
-    def test_queue_warning_near_full(self):
-        """Test that a warning is logged when queue reaches 80%."""
-        # 80% of 5 is 4.
+        self.assertEqual(self.q.qsize(), self.max_size)
+
+        # Add one more — should evict topic_0
+        self.q.put("topic_new", b"data", False)
+
+        # Size unchanged
+        self.assertEqual(self.q.qsize(), self.max_size)
+
+        # Drain and verify oldest (topic_0) is gone, newest is present
+        items = list(self.q.drain_all())
+        topics = [item['topic'] for item in items]
+        self.assertNotIn("topic_0", topics)
+        self.assertIn("topic_new", topics)
+        self.assertEqual(len(topics), self.max_size)
+
+    def test_queue_full_logs_eviction(self):
+        """When queue is full, eviction is logged as a warning."""
         with patch('handlers.queue.logger') as mock_logger:
-            for i in range(4):
+            for i in range(self.max_size):
                 self.q.put(f"topic_{i}", b"data", False)
-            
-            # 4th message should trigger warning
-            mock_logger.warning.assert_called_with(f"⚠️ Queue nearly full: 4/{self.max_size} messages pending")
+
+            self.q.put("topic_new", b"data", False)
+
+            # Should have logged a warning about eviction
+            warning_calls = [str(c) for c in mock_logger.warning.call_args_list]
+            eviction_logged = any("Evicting oldest" in c for c in warning_calls)
+            self.assertTrue(eviction_logged, f"Expected eviction warning, got: {warning_calls}")
 
 if __name__ == '__main__':
     unittest.main()
