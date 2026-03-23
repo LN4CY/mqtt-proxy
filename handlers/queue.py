@@ -68,14 +68,18 @@ class MessageQueue:
             'timestamp': time.time()
         }
 
+        evicted_topic = None
         with self._lock:
             if len(self._deque) >= self.max_size:
                 evicted = self._deque.popleft()
-                logger.warning(f"Queue full ({self.max_size}/{self.max_size}). Evicting oldest message to make room.")
-                logger.debug(f"Evicted message for topic: {evicted['topic']}")
+                evicted_topic = evicted['topic']
 
             self._deque.append(item)
             size = len(self._deque)
+
+        if evicted_topic is not None:
+            logger.warning(f"Queue full ({self.max_size}/{self.max_size}). Evicting oldest message to make room.")
+            logger.debug(f"Evicted message for topic: {evicted_topic}")
 
         self._event.set()
 
@@ -85,10 +89,11 @@ class MessageQueue:
             logger.debug(f"Queue growing: {size} messages pending")
 
     def drain_all(self):
-        """Remove and yield all items. Used for testing."""
+        """Remove and return all items as a list. Used for testing."""
         with self._lock:
-            while self._deque:
-                yield self._deque.popleft()
+            items = list(self._deque)
+            self._deque.clear()
+            return items
 
     def _get(self):
         """Get the next item from the deque, or None if empty."""
@@ -110,6 +115,7 @@ class MessageQueue:
 
                 iface = self._wait_for_interface()
                 if not iface or not self.running:
+                    logger.debug(f"Dropping message during shutdown: {item['topic']}")
                     continue
 
                 try:
