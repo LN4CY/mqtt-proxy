@@ -34,6 +34,7 @@ class MessageQueue:
         self._deque = deque()
         self._lock = threading.Lock()
         self._event = threading.Event()
+        self._eviction_count = 0
         self.running = False
         self.thread = None
 
@@ -44,7 +45,7 @@ class MessageQueue:
         self.running = True
         self.thread = threading.Thread(target=self._process_loop, daemon=True, name="MessageQueueWorker")
         self.thread.start()
-        logger.info("Message queue started.")
+        logger.info("📦 Message queue started.")
 
     def stop(self):
         """Stop the queue processing."""
@@ -52,7 +53,7 @@ class MessageQueue:
         self._event.set()
         if self.thread and self.thread.is_alive():
             self.thread.join(timeout=1.0)
-        logger.info("Message queue stopped.")
+        logger.info("🛑 Message queue stopped.")
 
     def qsize(self):
         """Return current queue size."""
@@ -73,20 +74,21 @@ class MessageQueue:
             if len(self._deque) >= self.max_size:
                 evicted = self._deque.popleft()
                 evicted_topic = evicted['topic']
+                self._eviction_count += 1
 
             self._deque.append(item)
             size = len(self._deque)
 
         if evicted_topic is not None:
-            logger.warning(f"Queue full ({self.max_size}/{self.max_size}). Evicting oldest message to make room.")
+            logger.warning(f"⚠️ Queue full ({self.max_size}/{self.max_size}), evicted {self._eviction_count} total. Evicting oldest message to make room.")
             logger.debug(f"Evicted message for topic: {evicted_topic}")
 
         self._event.set()
 
         if size >= (self.max_size * 0.8) and size < self.max_size:
-            logger.warning(f"Queue nearly full: {size}/{self.max_size} messages pending")
+            logger.warning(f"⚠️ Queue nearly full: {size}/{self.max_size} messages pending")
         elif size > 10:
-            logger.debug(f"Queue growing: {size} messages pending")
+            logger.debug(f"📈 Queue growing: {size} messages pending")
 
     def drain_all(self):
         """Remove and return all items as a list. Used for testing."""
@@ -106,11 +108,11 @@ class MessageQueue:
         """Main processing loop."""
         while self.running:
             try:
+                self._event.clear()
                 item = self._get()
 
                 if item is None:
                     self._event.wait(timeout=1.0)
-                    self._event.clear()
                     continue
 
                 iface = self._wait_for_interface()
@@ -125,15 +127,15 @@ class MessageQueue:
                     send_duration = time.time() - send_start
 
                     queue_size = self.qsize()
-                    logger.info(f"Message processed. Queue: {queue_size}/{self.max_size}, Wait: {queue_duration:.3f}s, Send: {send_duration:.3f}s")
+                    logger.info(f"✅ Message processed. Queue: {queue_size}/{self.max_size}, Wait: {queue_duration:.3f}s, Send: {send_duration:.3f}s")
 
                     time.sleep(self.config.mesh_transmit_delay)
 
                 except Exception as e:
-                    logger.error(f"Failed to send to radio: {e}")
+                    logger.error(f"❌ Failed to send to radio: {e}")
 
             except Exception as e:
-                logger.error(f"Error in queue processing loop: {e}")
+                logger.error(f"❌ Error in queue processing loop: {e}")
                 time.sleep(1)
 
     def _wait_for_interface(self):
@@ -157,10 +159,11 @@ class MessageQueue:
 
         size = len(item['payload'])
 
+        # Use _sendToRadio if available (thread-safe with locking), fall back to Impl
         if hasattr(iface, "_sendToRadio"):
              iface._sendToRadio(to_radio)
         else:
-             logger.warning("Interface missing _sendToRadio, falling back to _sendToRadioImpl")
+             logger.warning("⚠️ Interface missing _sendToRadio, falling back to _sendToRadioImpl (potentially unsafe)")
              iface._sendToRadioImpl(to_radio)
 
-        logger.debug(f"Sent to radio: {item['topic']} ({size} bytes)")
+        logger.debug(f"📤 Sent to radio: {item['topic']} ({size} bytes)")
