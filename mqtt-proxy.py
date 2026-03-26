@@ -55,9 +55,6 @@ class MQTTProxy:
 
     def start(self):
         logger.info("🚀 MQTT Proxy v%s starting (interface: %s)...", __version__, cfg.interface_type.upper())
-        
-        # Start the message queue
-        self.message_queue.start()
 
         # Subscribe to events
         pub.subscribe(self.on_connection, "meshtastic.connection.established")
@@ -81,7 +78,10 @@ class MQTTProxy:
                 self._init_mqtt()
                 
                 logger.info("✅ Node config fully loaded. Proxy active.")
-                
+
+                # Start (or restart) the message queue
+                self.message_queue.start()
+
                 # Main Loop
                 last_heartbeat = 0
                 while self.running and self.iface:
