@@ -1,1 +1,0 @@
-45	OPEN	MQTT proxy traverses messages for non-configured channels		2026-03-23T17:47:34Z
