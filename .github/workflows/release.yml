@@ -68,7 +68,7 @@ jobs:
         shell: bash
         run: |
           python3 -c "
-          import os
+          import os, re
           version = '${{ steps.tag.outputs.tag }}'.replace('v', '')
           notes_path = 'RELEASE_NOTES.md'
           if not os.path.exists(notes_path):
@@ -85,8 +85,12 @@ jobs:
               exit(0)
           notes = []
           for i in range(start + 1, len(lines)):
-              if lines[i].startswith('# Release v'):
+              # Stop if we hit the next release header
+              if re.match(r'^#\s+Release\s+v[\d\.]+', lines[i].strip()):
                   break
+              # Skip trailing separators
+              if lines[i].strip() == '---' and len(notes) > 0 and i+1 < len(lines) and re.match(r'^#\s+Release\s+v[\d\.]+', lines[i+1].strip()):
+                  continue
               notes.append(lines[i])
           with open('latest_notes.md', 'w', encoding='utf-8') as f:
               f.write(''.join(notes).strip())

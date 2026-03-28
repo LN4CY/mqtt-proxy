@@ -85,8 +85,10 @@ def extract_release_notes(version):
     # Collect lines until the next version header or end of file
     release_notes = []
     for i in range(start_line + 1, len(lines)):
-        if lines[i].startswith("# Release v"):
+        if re.match(r'^#\s+Release\s+v[\d\.]+', lines[i].strip()):
             break
+        if lines[i].strip() == '---' and i + 1 < len(lines) and re.match(r'^#\s+Release\s+v[\d\.]+', lines[i+1].strip()):
+            continue
         release_notes.append(lines[i])
         
     # Trim leading/trailing whitespace lines
