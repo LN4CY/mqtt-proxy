@@ -1,4 +1,4 @@
-# Unreleased
+# Release v1.6.5
 
 ## ✨ Features & Enhancements
 - **Strict Channel Verification:** Added configuration flag `MESH_ALLOW_UNCONFIGURED_CHANNELS` (default: `True`) allowing users to strictly enforce network forwarding restrictions based on physical node definitions, preventing extraneous traffic from traversing the proxy (fixes Issue 45).
