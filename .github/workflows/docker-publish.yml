@@ -7,6 +7,7 @@ on:
     tags: [ 'v*.*.*' ]
   pull_request:
     branches: [ "master", "main" ]
+  workflow_dispatch:      # Allow manual re-triggering to restore missing images
 
 env:
   # Use docker.io for Docker Hub if empty
@@ -59,7 +60,7 @@ jobs:
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=semver,pattern=latest
             type=sha,format=long
 
       # Build and push Docker image with Buildx (don't push on PR)

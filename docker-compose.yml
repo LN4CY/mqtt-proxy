@@ -3,7 +3,7 @@ services:
     # Build from source
     build: .
     # OR use pre-built image
-    # image: ghcr.io/ln4cy/mqtt-proxy:master
+    # image: ghcr.io/ln4cy/mqtt-proxy:latest
     container_name: mqtt-proxy
     restart: unless-stopped
     environment:
