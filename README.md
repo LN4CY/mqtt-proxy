@@ -74,7 +74,7 @@ docker run -d \
   -e INTERFACE_TYPE=tcp \
   -e TCP_NODE_HOST=192.168.1.100 \
   -e TCP_NODE_PORT=4403 \
-  ghcr.io/ln4cy/mqtt-proxy:master
+  ghcr.io/ln4cy/mqtt-proxy:latest
 ```
 
 ## Configuration
@@ -261,6 +261,20 @@ Docker Desktop for Mac 4.27+ supports USB device forwarding:
 3. Device appears as `/dev/ttyACM0` in containers
 4. Update `docker-compose.yml` devices section accordingly
 
+## Docker Images & Tag Policy
+
+We maintain multiple tags for the `ghcr.io/ln4cy/mqtt-proxy` image to suit different needs:
+
+| Tag | Description | Recommended For |
+|-----|-------------|-----------------|
+| `:latest` | The most recent stable release (SemVer tagged). | Production / General Use |
+| `:vX.Y.Z` | A specific stable release version. | Version pinning |
+| `:master` | The latest development build from the `master` branch. | Testing new features |
+| `:sha-<hash>` | Build linked to a specific git commit. | CI/CD automation |
+
+> [!TIP]
+> **Production Recommendation**: Most users should pull the `:latest` tag to ensure they have the most recent stable features and security fixes.
+
 ## Integration with MeshMonitor
 
 For a seamless integration with [MeshMonitor](https://github.com/Yeraze/meshmonitor), add the proxy as a service in your main `docker-compose.yml`.
@@ -324,7 +338,7 @@ services:
 
   # This proxy service (The Glue)
   mqtt-proxy:
-    image: ghcr.io/ln4cy/mqtt-proxy:master
+    image: ghcr.io/ln4cy/mqtt-proxy:latest
     container_name: mqtt-proxy
     restart: unless-stopped
     environment:

@@ -15,8 +15,8 @@ jobs:
         uses: snok/container-retention-policy@v3.0.0
         with:
           image-names: mqtt-proxy
-          cut-off: 14d
-          account: user
+          cut-off: 90d
+          account: ${{ github.repository_owner }}
           token: ${{ secrets.GITHUB_TOKEN }}
           tag-selection: untagged
 
@@ -24,19 +24,19 @@ jobs:
         uses: snok/container-retention-policy@v3.0.0
         with:
           image-names: mqtt-proxy
-          cut-off: 14d
-          account: user
+          cut-off: 90d
+          account: ${{ github.repository_owner }}
           token: ${{ secrets.GITHUB_TOKEN }}
-          image-tags: fix-*,feat-*,pr-*
+          image-tags: "!v*,!latest,fix-*,feat-*,pr-*"
           keep-n-most-recent: 3
 
       - name: Delete old master branch images
         uses: snok/container-retention-policy@v3.0.0
         with:
           image-names: mqtt-proxy
-          cut-off: 30d
-          account: user
+          cut-off: 90d
+          account: ${{ github.repository_owner }}
           token: ${{ secrets.GITHUB_TOKEN }}
-          image-tags: master
+          image-tags: "!v*,!latest,master"
           keep-n-most-recent: 5
 
