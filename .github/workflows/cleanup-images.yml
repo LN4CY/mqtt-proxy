@@ -22,14 +22,34 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           image-tags: "sha-*,!*.*,!latest"
 
-      - name: Delete old feature/PR branch images
+      - name: Delete old PR images
         uses: snok/container-retention-policy@v3.0.1
         with:
           image-names: mqtt-proxy
           cut-off: 14d
           account: user
           token: ${{ secrets.GITHUB_TOKEN }}
-          image-tags: "fix-*,feat-*,pr-*,!*.*,!latest"
+          image-tags: "pr-*,!*.*,!latest"
+          keep-n-most-recent: 3
+
+      - name: Delete old fix branch images
+        uses: snok/container-retention-policy@v3.0.1
+        with:
+          image-names: mqtt-proxy
+          cut-off: 14d
+          account: user
+          token: ${{ secrets.GITHUB_TOKEN }}
+          image-tags: "fix-*,!*.*,!latest"
+          keep-n-most-recent: 3
+
+      - name: Delete old feat branch images
+        uses: snok/container-retention-policy@v3.0.1
+        with:
+          image-names: mqtt-proxy
+          cut-off: 14d
+          account: user
+          token: ${{ secrets.GITHUB_TOKEN }}
+          image-tags: "feat-*,!*.*,!latest"
           keep-n-most-recent: 3
 
       - name: Delete old master branch images
