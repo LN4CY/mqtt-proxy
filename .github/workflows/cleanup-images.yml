@@ -12,7 +12,7 @@ jobs:
       packages: write
     steps:
       - name: Delete untagged images
-        uses: snok/container-retention-policy@v3.0.0
+        uses: snok/container-retention-policy@v3
         with:
           image-names: mqtt-proxy
           cut-off: 90d
@@ -21,7 +21,7 @@ jobs:
           tag-selection: untagged
 
       - name: Delete old feature branch images
-        uses: snok/container-retention-policy@v3.0.0
+        uses: snok/container-retention-policy@v3
         with:
           image-names: mqtt-proxy
           cut-off: 90d
@@ -31,7 +31,7 @@ jobs:
           keep-n-most-recent: 3
 
       - name: Delete old master branch images
-        uses: snok/container-retention-policy@v3.0.0
+        uses: snok/container-retention-policy@v3
         with:
           image-names: mqtt-proxy
           cut-off: 90d
