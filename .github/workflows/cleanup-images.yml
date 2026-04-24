@@ -11,23 +11,25 @@ jobs:
     permissions:
       packages: write
     steps:
-      - name: Delete untagged images
+      # Delete commit-SHA images first (generated on every push by type=sha,format=long)
+      # Guard !*.* and !latest prevents touching release or latest tags on the same digest
+      - name: Delete old commit SHA images
         uses: snok/container-retention-policy@v3
         with:
           image-names: mqtt-proxy
-          cut-off: 90d
+          cut-off: 30d
           account: ${{ github.repository_owner }}
           token: ${{ secrets.GITHUB_TOKEN }}
-          tag-selection: untagged
+          image-tags: "sha-*,!*.*,!latest"
 
-      - name: Delete old feature branch images
+      - name: Delete old feature/PR branch images
         uses: snok/container-retention-policy@v3
         with:
           image-names: mqtt-proxy
           cut-off: 90d
           account: ${{ github.repository_owner }}
           token: ${{ secrets.GITHUB_TOKEN }}
-          image-tags: "!v*,!latest,fix-*,feat-*,pr-*"
+          image-tags: "fix-*,feat-*,pr-*,!*.*,!latest"
           keep-n-most-recent: 3
 
       - name: Delete old master branch images
@@ -37,6 +39,44 @@ jobs:
           cut-off: 90d
           account: ${{ github.repository_owner }}
           token: ${{ secrets.GITHUB_TOKEN }}
-          image-tags: "!v*,!latest,master"
+          image-tags: "master,!*.*,!latest"
           keep-n-most-recent: 5
 
+      # After deleting old tagged images above, collect the platform manifest digests
+      # still referenced by any remaining tagged image, so we don't break multi-arch pulls.
+      - name: Collect platform manifest SHAs to protect
+        id: protected
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAGGED=$(gh api "user/packages/container/mqtt-proxy/versions" \
+            --paginate \
+            --jq '.[] | select(.metadata.container.tags | length > 0) | .name' \
+            2>/dev/null || echo "")
+
+          SKIP=""
+          while IFS= read -r digest; do
+            [ -z "$digest" ] && continue
+            children=$(curl -sf \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json" \
+              "https://ghcr.io/v2/${{ github.repository_owner }}/mqtt-proxy/manifests/$digest" \
+              | python3 -c "import sys,json; d=json.load(sys.stdin); [print(m['digest']) for m in d.get('manifests',[])]" \
+              2>/dev/null || true)
+            [ -n "$children" ] && SKIP+="${children}"$'\n'
+          done <<< "$TAGGED"
+
+          SKIP_CSV=$(echo "$SKIP" | grep -v '^$' | sort -u | paste -sd,)
+          echo "shas=$SKIP_CSV" >> $GITHUB_OUTPUT
+
+      # Now safe to delete untagged images — orphaned platform manifests from deleted
+      # tagged images above will be cleaned up; active ones are protected via skip-shas.
+      - name: Delete old untagged images
+        uses: snok/container-retention-policy@v3
+        with:
+          image-names: mqtt-proxy
+          cut-off: 30d
+          account: ${{ github.repository_owner }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag-selection: untagged
+          skip-shas: ${{ steps.protected.outputs.shas }}
