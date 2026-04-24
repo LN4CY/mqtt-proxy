@@ -18,7 +18,7 @@ jobs:
         with:
           image-names: mqtt-proxy
           cut-off: 30d
-          account: ${{ github.repository_owner }}
+          account: user
           token: ${{ secrets.GITHUB_TOKEN }}
           image-tags: "sha-*,!*.*,!latest"
 
@@ -27,7 +27,7 @@ jobs:
         with:
           image-names: mqtt-proxy
           cut-off: 90d
-          account: ${{ github.repository_owner }}
+          account: user
           token: ${{ secrets.GITHUB_TOKEN }}
           image-tags: "fix-*,feat-*,pr-*,!*.*,!latest"
           keep-n-most-recent: 3
@@ -37,7 +37,7 @@ jobs:
         with:
           image-names: mqtt-proxy
           cut-off: 90d
-          account: ${{ github.repository_owner }}
+          account: user
           token: ${{ secrets.GITHUB_TOKEN }}
           image-tags: "master,!*.*,!latest"
           keep-n-most-recent: 5
@@ -76,7 +76,7 @@ jobs:
         with:
           image-names: mqtt-proxy
           cut-off: 30d
-          account: ${{ github.repository_owner }}
+          account: user
           token: ${{ secrets.GITHUB_TOKEN }}
           tag-selection: untagged
           skip-shas: ${{ steps.protected.outputs.shas }}
