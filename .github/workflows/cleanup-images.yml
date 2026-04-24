@@ -29,7 +29,7 @@ jobs:
           cut-off: 14d
           account: user
           token: ${{ secrets.GITHUB_TOKEN }}
-          image-tags: "pr-*,!*.*,!latest"
+          image-tags: "pr-*,sha-*,!*.*,!latest"
           keep-n-most-recent: 3
 
       - name: Delete old fix branch images
@@ -39,7 +39,7 @@ jobs:
           cut-off: 14d
           account: user
           token: ${{ secrets.GITHUB_TOKEN }}
-          image-tags: "fix-*,!*.*,!latest"
+          image-tags: "fix-*,sha-*,!*.*,!latest"
           keep-n-most-recent: 3
 
       - name: Delete old feat branch images
@@ -49,7 +49,7 @@ jobs:
           cut-off: 14d
           account: user
           token: ${{ secrets.GITHUB_TOKEN }}
-          image-tags: "feat-*,!*.*,!latest"
+          image-tags: "feat-*,sha-*,!*.*,!latest"
           keep-n-most-recent: 3
 
       - name: Delete old master branch images
@@ -59,7 +59,7 @@ jobs:
           cut-off: 90d
           account: user
           token: ${{ secrets.GITHUB_TOKEN }}
-          image-tags: "master,!*.*,!latest"
+          image-tags: "master,sha-*,!*.*,!latest"
           keep-n-most-recent: 5
 
       # After deleting old tagged images above, collect the platform manifest digests
