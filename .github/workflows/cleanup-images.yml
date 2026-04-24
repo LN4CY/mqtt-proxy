@@ -14,7 +14,7 @@ jobs:
       # Delete commit-SHA images first (generated on every push by type=sha,format=long)
       # Guard !*.* and !latest prevents touching release or latest tags on the same digest
       - name: Delete old commit SHA images
-        uses: snok/container-retention-policy@v3
+        uses: snok/container-retention-policy@v3.0.1
         with:
           image-names: mqtt-proxy
           cut-off: 30d
@@ -23,7 +23,7 @@ jobs:
           image-tags: "sha-*,!*.*,!latest"
 
       - name: Delete old feature/PR branch images
-        uses: snok/container-retention-policy@v3
+        uses: snok/container-retention-policy@v3.0.1
         with:
           image-names: mqtt-proxy
           cut-off: 90d
@@ -33,7 +33,7 @@ jobs:
           keep-n-most-recent: 3
 
       - name: Delete old master branch images
-        uses: snok/container-retention-policy@v3
+        uses: snok/container-retention-policy@v3.0.1
         with:
           image-names: mqtt-proxy
           cut-off: 90d
@@ -72,7 +72,7 @@ jobs:
       # Now safe to delete untagged images — orphaned platform manifests from deleted
       # tagged images above will be cleaned up; active ones are protected via skip-shas.
       - name: Delete old untagged images
-        uses: snok/container-retention-policy@v3
+        uses: snok/container-retention-policy@v3.0.1
         with:
           image-names: mqtt-proxy
           cut-off: 30d
