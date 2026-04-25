@@ -194,7 +194,9 @@ If you prefer not to manage Python environments or Docker on Windows, you can do
 **Option 2: Run Natively with Python venv**
 Running via Python natively is great for development or if you already have Python installed.
 
-1. In the MeshMonitor Windows App, go to Settings and check **"Enable Virtual Node Server"**. This starts a local MeshNode server on port `4404` (Skip if using direct USB serial).
+1. Enable the Virtual Node in MeshMonitor (skip if using direct USB serial):
+   - **MeshMonitor v4.0+:** Dashboard → Edit Source → Virtual Node → toggle on, set port `4404`
+   - **MeshMonitor v3.x:** Settings → check **"Enable Virtual Node Server"** (uses port `4404` by default)
 2. Open PowerShell or Command Prompt.
 3. Create and activate a virtual environment:
 ```powershell
@@ -288,30 +290,31 @@ For a seamless integration with [MeshMonitor](https://github.com/Yeraze/meshmoni
 2. **Startup Order:** Use a healthcheck on `meshmonitor` so `mqtt-proxy` only starts when the virtual node is ready.
 3. **Environment:** Use `TCP_NODE_HOST=meshmonitor` to avoid hardcoded IPs.
 
-### Example Configuration
+### Virtual Node Setup
+
+> [!NOTE]
+> How you enable the Virtual Node depends on your MeshMonitor version:
+>
+> **MeshMonitor v4.0+** — Virtual Node is configured per-source in the UI. `ENABLE_VIRTUAL_NODE` and `VIRTUAL_NODE_PORT` env vars were removed. After starting MeshMonitor, go to **Dashboard → Edit Source → Virtual Node**, toggle it on, and set port `4404`. You still need to publish `4404:4404` in `ports:` so the container port is reachable.
+>
+> **MeshMonitor v3.x** — Virtual Node is enabled via env vars in `docker-compose.yml` as shown in the example below.
+
+### Example Configuration (MeshMonitor v4.0+)
 
 ```yaml
 version: '3'
 services:
   # The main application
   meshmonitor:
-    image: ghcr.io/yeraze/meshmonitor:latest
+    image: ghcr.io/yeraze/meshmonitor:4.0.0-beta13  # or :latest once 4.0 is released
     container_name: meshmonitor
     restart: unless-stopped
     ports:
       - "8181:3001"
-      - "4404:4404"
+      - "4404:4404"  # Publish the VN port — enable VN itself via Dashboard → Edit Source
     environment:
-      - ENABLE_VIRTUAL_NODE=true
-      # Optional: Subscribe to another region's traffic
-      - EXTRA_MQTT_ROOTS=msh/US/NC:NC
-      - VIRTUAL_NODE_PORT=4404
       - MESHTASTIC_NODE_IP=serial-bridge  # Connects to serial-bridge by name
-      - STATUS_FILE=/data/.upgrade-status
-      - CHECK_INTERVAL=5
-      - COMPOSE_PROJECT_DIR=/compose
       - COMPOSE_PROJECT_NAME=meshmonitor # Critical: Forces upgrader to use shared network
-    command: /data/scripts/upgrade-watchdog.sh
     # Add simple healthcheck to ensure port 4404 is open
     healthcheck:
       test: ["CMD-SHELL", "node -e 'const net = require(\"net\"); const client = new net.Socket(); client.connect(4404, \"127.0.0.1\", () => { process.exit(0); }); client.on(\"error\", () => { process.exit(1); });'"]
@@ -348,6 +351,64 @@ services:
     depends_on:
       meshmonitor:
         condition: service_healthy # Wait for port 4404 to be listening
+    networks:
+      - meshtastic_net
+
+networks:
+  meshtastic_net:
+    driver: bridge
+```
+
+### Example Configuration (MeshMonitor v3.x)
+
+```yaml
+version: '3'
+services:
+  meshmonitor:
+    image: ghcr.io/yeraze/meshmonitor:3.12.0  # or :latest for v3
+    container_name: meshmonitor
+    restart: unless-stopped
+    ports:
+      - "8181:3001"
+      - "4404:4404"
+    environment:
+      - ENABLE_VIRTUAL_NODE=true
+      - VIRTUAL_NODE_PORT=4404
+      - MESHTASTIC_NODE_IP=serial-bridge
+      - COMPOSE_PROJECT_NAME=meshmonitor
+    healthcheck:
+      test: ["CMD-SHELL", "node -e 'const net = require(\"net\"); const client = new net.Socket(); client.connect(4404, \"127.0.0.1\", () => { process.exit(0); }); client.on(\"error\", () => { process.exit(1); });'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    depends_on:
+      - serial-bridge
+    networks:
+      - meshtastic_net
+
+  serial-bridge:
+    image: ghcr.io/yeraze/meshtastic-serial-bridge:latest
+    container_name: meshtastic-serial-bridge
+    devices:
+      - /dev/ttyACM0:/dev/ttyACM0
+    environment:
+      - SERIAL_DEVICE=/dev/ttyACM0
+      - TCP_PORT=4403
+    networks:
+      - meshtastic_net
+
+  mqtt-proxy:
+    image: ghcr.io/ln4cy/mqtt-proxy:latest
+    container_name: mqtt-proxy
+    restart: unless-stopped
+    environment:
+      - INTERFACE_TYPE=tcp
+      - TCP_NODE_HOST=meshmonitor
+      - TCP_NODE_PORT=4404
+    depends_on:
+      meshmonitor:
+        condition: service_healthy
     networks:
       - meshtastic_net
 
