@@ -1,3 +1,10 @@
+# Release v1.6.6
+
+## 🐛 Bug Fixes
+- **Serial Port Leak Fix:** Implemented explicit cleanup of underlying streams in `RawTCPInterface` and `RawSerialInterface` if initialization fails (e.g., due to a protocol handshake timeout). This prevents orphaned file descriptors from locking the serial port or leaking sockets, ensuring that subsequent reconnection attempts do not fail with "Resource temporarily unavailable" (fixes Issue 65).
+
+---
+
 # Release v1.6.5
 
 ## ✨ Features & Enhancements

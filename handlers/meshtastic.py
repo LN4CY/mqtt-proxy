@@ -130,14 +130,34 @@ class RawTCPInterface(MQTTProxyMixin, TCPInterface):
     """TCP interface with MQTT proxy support and safe error handling"""
     def __init__(self, *args, **kwargs):
         self.proxy = kwargs.pop('proxy', None)
-        super().__init__(*args, **kwargs)
+        try:
+            super().__init__(*args, **kwargs)
+        except Exception as e:
+            # If initialization fails (e.g. timeout), ensure the socket is closed
+            if hasattr(self, 'socket') and self.socket:
+                try:
+                    self.socket.close()
+                except: pass
+            if hasattr(self, 'stream') and self.stream:
+                try:
+                    self.stream.close()
+                except: pass
+            raise e
 
 
 class RawSerialInterface(MQTTProxyMixin, SerialInterface):
     """Serial interface with MQTT proxy support and safe error handling"""
     def __init__(self, *args, **kwargs):
         self.proxy = kwargs.pop('proxy', None)
-        super().__init__(*args, **kwargs)
+        try:
+            super().__init__(*args, **kwargs)
+        except Exception as e:
+            # If initialization fails (e.g. timeout), ensure the serial port is closed
+            if hasattr(self, 'stream') and self.stream:
+                try:
+                    self.stream.close()
+                except: pass
+            raise e
 
 
 def create_interface(config, proxy_instance):
