@@ -74,13 +74,16 @@ jobs:
             --jq '.[] | select(.metadata.container.tags | length > 0) | .name' \
             2>/dev/null || echo "")
 
+          REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          TOKEN=$(curl -s -u "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" "https://ghcr.io/token?scope=repository:$REPO:pull" | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))")
+
           SKIP=""
           while IFS= read -r digest; do
             [ -z "$digest" ] && continue
             children=$(curl -sf \
-              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Authorization: Bearer $TOKEN" \
               -H "Accept: application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json" \
-              "https://ghcr.io/v2/${{ github.repository_owner }}/mqtt-proxy/manifests/$digest" \
+              "https://ghcr.io/v2/$REPO/manifests/$digest" \
               | python3 -c "import sys,json; d=json.load(sys.stdin); [print(m['digest']) for m in d.get('manifests',[])]" \
               2>/dev/null || true)
             [ -n "$children" ] && SKIP+="${children}"$'\n'
