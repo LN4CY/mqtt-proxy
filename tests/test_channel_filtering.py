@@ -121,7 +121,7 @@ class TestChannelFiltering:
         # Uplink MUST BE DROPPED by default to prevent infinite echo loops
         assert proxy._is_channel_uplink_enabled("Unknown") == False
 
-    def test_pki_uplink_allowed_by_default(self, monkeypatch):
+    def test_pki_uplink_allowed_when_enabled(self, monkeypatch):
         import config as cfgmod
         monkeypatch.setattr(cfgmod.cfg, "mesh_allow_pki_uplink", True)
         proxy = MQTTProxy()
