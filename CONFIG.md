@@ -208,7 +208,7 @@ For each configured channel on your node:
 - If `uplink_enabled` is **false**, the proxy will drop messages received from the mesh on that channel instead of sending them to the MQTT broker.
 - If `downlink_enabled` is **false**, the proxy will ignore messages received from the MQTT broker destined for that channel instead of transmitting them to the mesh.
 
-**PKI / direct messages:** Topic channel `PKI` is never present in `localNode.channels`. With `MESH_ALLOW_PKI_UPLINK=true` (default), the proxy still uplinks those envelopes so DMs and traceroutes reach the public broker. Unknown *other* channels remain dropped on uplink to prevent virtual-channel echo loops.
+**PKI / direct messages:** Topic channel `PKI` is never present in `localNode.channels`. With `MESH_ALLOW_PKI_UPLINK=true` (default), the proxy still uplinks those envelopes so DMs and traceroutes reach the configured MQTT broker. Unknown *other* channels remain dropped on uplink to prevent virtual-channel echo loops.
 
 You can configure these settings using the Meshtastic CLI:
 ```bash

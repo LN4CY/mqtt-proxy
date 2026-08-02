@@ -55,6 +55,8 @@ class MQTTProxy:
 
     def start(self):
         logger.info("🚀 MQTT Proxy v%s starting (interface: %s)...", __version__, cfg.interface_type.upper())
+        if not getattr(cfg, "mesh_allow_pki_uplink", True):
+            logger.info("🛡️ PKI uplink disabled (MESH_ALLOW_PKI_UPLINK=false)")
 
         # Subscribe to events
         pub.subscribe(self.on_connection, "meshtastic.connection.established")
@@ -259,13 +261,8 @@ class MQTTProxy:
         # PKI is the MQTT topic for encrypted DMs/traceroutes — not a channel index.
         # Allow publishing those to the broker (default on; disable via MESH_ALLOW_PKI_UPLINK=false).
         if search_name == "pki":
-            allow = getattr(cfg, "mesh_allow_pki_uplink", True)
-            if allow:
-                logger.debug("📡 PKI uplink allowed (MESH_ALLOW_PKI_UPLINK)")
-            else:
-                logger.info("🛡️ PKI uplink disabled (MESH_ALLOW_PKI_UPLINK=false)")
-            return allow
-        
+            return getattr(cfg, "mesh_allow_pki_uplink", True)
+
         for i, ch in enumerate(self.iface.localNode.channels):
             if ch.role == 0: continue
             
