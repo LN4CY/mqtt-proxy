@@ -255,6 +255,16 @@ class MQTTProxy:
             return True
             
         search_name = channel_name.lower()
+
+        # PKI is the MQTT topic for encrypted DMs/traceroutes — not a channel index.
+        # Allow publishing those to the broker (default on; disable via MESH_ALLOW_PKI_UPLINK=false).
+        if search_name == "pki":
+            allow = getattr(cfg, "mesh_allow_pki_uplink", True)
+            if allow:
+                logger.debug("📡 PKI uplink allowed (MESH_ALLOW_PKI_UPLINK)")
+            else:
+                logger.info("🛡️ PKI uplink disabled (MESH_ALLOW_PKI_UPLINK=false)")
+            return allow
         
         for i, ch in enumerate(self.iface.localNode.channels):
             if ch.role == 0: continue

@@ -120,3 +120,18 @@ class TestChannelFiltering:
         assert proxy._is_channel_downlink_enabled("Unknown") == True
         # Uplink MUST BE DROPPED by default to prevent infinite echo loops
         assert proxy._is_channel_uplink_enabled("Unknown") == False
+
+    def test_pki_uplink_allowed_by_default(self):
+        proxy = MQTTProxy()
+        proxy.iface = MagicMock()
+        proxy.iface.localNode.channels = []
+        assert proxy._is_channel_uplink_enabled("PKI") == True
+        assert proxy._is_channel_uplink_enabled("pki") == True
+
+    def test_pki_uplink_can_be_disabled(self, monkeypatch):
+        import config as cfgmod
+        monkeypatch.setattr(cfgmod.cfg, "mesh_allow_pki_uplink", False)
+        proxy = MQTTProxy()
+        proxy.iface = MagicMock()
+        proxy.iface.localNode.channels = []
+        assert proxy._is_channel_uplink_enabled("PKI") == False

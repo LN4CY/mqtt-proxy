@@ -65,6 +65,11 @@ class Config:
         # Max number of messages to keep in queue before dropping new ones
         self.mesh_max_queue_size = int(os.environ.get("MESH_MAX_QUEUE_SIZE", "5000"))  
         
+        # Allow uplink of PKI (direct messages / traceroutes). PKI is not a radio
+        # channel slot, so it never appears in localNode.channels — without this,
+        # Node->MQTT PKI publishes are always dropped (loop-prevention path).
+        self.mesh_allow_pki_uplink = os.environ.get("MESH_ALLOW_PKI_UPLINK", "true").lower() == "true"
+        
         # Allow forwarding messages to/from channels not explicitly configured on the node
         # Default True to maintain backward compatibility (Virtual Channel Passthrough)
         self.mesh_allow_unconfigured_channels = os.environ.get("MESH_ALLOW_UNCONFIGURED_CHANNELS", "true").lower() == "true"
