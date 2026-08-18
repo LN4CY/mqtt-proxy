@@ -94,6 +94,7 @@ BLE support requires custom implementation using the `bleak` library. See the [m
 | `POLL_INTERVAL` | integer | `1` | Config polling interval (seconds) |
 | `EXTRA_MQTT_ROOTS` | string | `""` | Comma-separated list of roots with optional prefixes for Virtual Channels (e.g. `msh/US/OH:OH, msh/US/CA:CA`) |
 | `MESH_ALLOW_UNCONFIGURED_CHANNELS` | boolean | `true` | Forward MQTT messages to the radio even if their channel is not explicitly configured on the physical node (Virtual Channel Passthrough). Set to `false` for strict filtering. |
+| `MESH_ALLOW_PKI_UPLINK` | boolean | `true` | Allow Node→MQTT publish for topic channel `PKI` (encrypted DMs / traceroutes). PKI is not a radio channel slot, so without this those uplinks are dropped by the unknown-channel loop-prevention path. |
 
 
 ### Health Check Settings
@@ -206,6 +207,8 @@ The proxy automatically respects your node's channel settings for MQTT filtering
 For each configured channel on your node:
 - If `uplink_enabled` is **false**, the proxy will drop messages received from the mesh on that channel instead of sending them to the MQTT broker.
 - If `downlink_enabled` is **false**, the proxy will ignore messages received from the MQTT broker destined for that channel instead of transmitting them to the mesh.
+
+**PKI / direct messages:** Topic channel `PKI` is never present in `localNode.channels`. With `MESH_ALLOW_PKI_UPLINK=true` (default), the proxy still uplinks those envelopes so DMs and traceroutes reach the configured MQTT broker. Unknown *other* channels remain dropped on uplink to prevent virtual-channel echo loops.
 
 You can configure these settings using the Meshtastic CLI:
 ```bash

@@ -108,6 +108,7 @@ SERIAL_PORT=/dev/ttyACM0
 | `POLL_INTERVAL` | `1` | Config polling interval (seconds) |
 | `MESH_TRANSMIT_DELAY` | `0.5` | Delay between packets for rate limiting (seconds) |
 | `MESH_ALLOW_UNCONFIGURED_CHANNELS` | `true` | Allow forwarding messages for unconfigured channels |
+| `MESH_ALLOW_PKI_UPLINK` | `true` | Allow Node→MQTT publish for topic channel `PKI` (DMs/traceroutes). PKI is not a radio channel slot, so without this those uplinks are dropped by loop-prevention. |
 
 See [CONFIG.md](CONFIG.md) for detailed configuration options.
 
