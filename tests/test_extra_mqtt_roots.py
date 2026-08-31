@@ -57,7 +57,7 @@ class TestExtraMqttRootsSubscription:
         node_cfg.enabled = True
         node_cfg.address = "mqtt.example.com"
         node_cfg.port = 1883
-        node_cfg.tlsEnabled = False
+        node_cfg.tls_enabled = False
         node_cfg.username = "user"
         node_cfg.password = "pass"
         node_cfg.root = "msh/US/MI"
@@ -106,7 +106,7 @@ class TestExtraRootVirtualChannels:
         node_cfg.enabled = True
         node_cfg.address = "mqtt.example.com"
         node_cfg.port = 1883
-        node_cfg.tlsEnabled = False
+        node_cfg.tls_enabled = False
         node_cfg.username = "user"
         node_cfg.password = "pass"
         node_cfg.root = "msh/US/MI"
