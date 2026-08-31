@@ -62,7 +62,7 @@ class MQTTHandler:
             self.client.username_pw_set(mqtt_username, mqtt_password)
             
         # SSL/TLS Configuration
-        use_ssl = getattr(cfg, 'tlsEnabled', False)
+        use_ssl = getattr(cfg, 'tls_enabled', False)
         if mqtt_address and "mqtt.meshtastic.org" in mqtt_address:
              use_ssl = True
              

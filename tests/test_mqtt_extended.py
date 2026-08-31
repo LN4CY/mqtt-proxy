@@ -20,7 +20,7 @@ def test_mqtt_configure_minimal():
     node_cfg.enabled = True
     node_cfg.address = None
     node_cfg.port = 1883
-    node_cfg.tlsEnabled = False
+    node_cfg.tls_enabled = False
     node_cfg.username = None
     node_cfg.password = None
     node_cfg.root = 'msh'
@@ -37,7 +37,7 @@ def test_mqtt_configure_tls():
     node_cfg.enabled = True
     node_cfg.address = "mqtt.meshtastic.org"
     node_cfg.port = 1883
-    node_cfg.tlsEnabled = True
+    node_cfg.tls_enabled = True
     node_cfg.username = None
     node_cfg.password = None
     node_cfg.root = 'msh'
@@ -59,7 +59,7 @@ def test_mqtt_start_invalid_address():
     node_cfg.enabled = True
     node_cfg.address = "255.255.255.255"
     node_cfg.port = 1883
-    node_cfg.tlsEnabled = False
+    node_cfg.tls_enabled = False
     node_cfg.username = None
     node_cfg.password = None
     node_cfg.root = 'msh'
