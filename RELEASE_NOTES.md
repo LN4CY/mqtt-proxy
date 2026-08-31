@@ -1,3 +1,12 @@
+# Release v1.6.7
+
+## 🐛 Bug Fixes
+- **MQTT TLS Configuration Fix**: Fixed an issue where TLS was not properly enabled because the proxy was checking for `tlsEnabled` instead of the correct `tls_enabled` protobuf field. This ensures connections to `mqtts://` endpoints with explicitly configured TLS ports work correctly (fixes Issue #70).
+- **PKI Channel Uplink**: Added support for allowing PKI (Public Key Infrastructure) channel uplinks so Direct Messages and traceroutes from the node reach the MQTT broker. This bypasses the unconfigured channel filter for PKI, and is gated by a new configuration variable `MESH_ALLOW_PKI_UPLINK` (default `True`) (PR #69).
+- **Docker Registry Cleanup Fix**: Resolved a bug in the nightly Docker cleanup workflow that inadvertently deleted architecture-specific image layers from `ghcr.io` due to improper authentication and repository casing, preventing image pulls on non-amd64 architectures like Raspberry Pi/ARM64 (fixes Issue #67).
+
+---
+
 # Release v1.6.6
 
 ## 🐛 Bug Fixes
