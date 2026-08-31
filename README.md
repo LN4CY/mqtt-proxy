@@ -2,7 +2,7 @@
 
 A production-ready MQTT proxy for Meshtastic devices that enables bidirectional message forwarding between Meshtastic nodes and MQTT brokers. Supports TCP and Serial interface connections with a clean factory pattern architecture.
 
-**Version**: 1.6.6
+**Version**: 1.6.7
 
 ## Features
 
@@ -577,7 +577,7 @@ while the source code of this proxy is MIT licensed, it depends on third-party l
 
 - **Issues**: [GitHub Issues](https://github.com/LN4CY/mqtt-proxy/issues)
 - **Meshtastic Discord**: [Join](https://discord.gg/meshtastic)
-- **Version**: 1.6.6
+- **Version**: 1.6.7
 - **Documentation**: [Configuration Guide](CONFIG.md) | [Architecture](ARCHITECTURE.md)
 
 ## Roadmap
